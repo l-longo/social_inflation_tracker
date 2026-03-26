@@ -165,6 +165,17 @@ for sub in selected_subs:
 # ─── CHARTS ───────────────────────────────────────────────────────────────────
 st.markdown("---")
 
+# Compute shared y-axis range so both charts are directly comparable
+y_max = 0
+for sub in selected_subs:
+    df = datasets[sub]
+    if not df.empty:
+        if breakdown == "Total":
+            y_max = max(y_max, df["mentions_total"].max())
+        else:
+            y_max = max(y_max, (df["mentions_comments"] + df["mentions_submissions"]).max())
+y_max = int(y_max * 1.1) + 1  # 10% headroom
+
 for sub in selected_subs:
     df = datasets[sub]
     meta = SUBREDDITS[sub]
@@ -214,12 +225,14 @@ for sub in selected_subs:
         xaxis=dict(
             title="",
             gridcolor="rgba(255,255,255,0.04)",
-            dtick="D1" if len(df) <= 60 else None,
+            dtick="D1" if (date_range[1] - date_range[0]).days <= 60 else None,
             tickformat="%b %d",
+            range=[str(date_range[0]), str(date_range[1])],
         ),
         yaxis=dict(
             title="Mentions",
             gridcolor="rgba(255,255,255,0.06)",
+            range=[0, y_max],
         ),
         legend=dict(
             orientation="h",
