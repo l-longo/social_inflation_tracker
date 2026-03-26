@@ -81,6 +81,7 @@ def load_data(subreddit: str) -> pd.DataFrame:
         return pd.DataFrame(columns=["date", "mentions_comments", "mentions_submissions", "mentions_total"])
     df = pd.read_parquet(path)
     df["date"] = pd.to_datetime(df["date"])
+    df = df[df["date"].dt.year >= 2026]  # keep only 2026+
     return df.sort_values("date").reset_index(drop=True)
 
 
@@ -225,9 +226,7 @@ for sub in selected_subs:
         xaxis=dict(
             title="",
             gridcolor="rgba(255,255,255,0.04)",
-            dtick="D1" if (date_range[1] - date_range[0]).days <= 60 else None,
             tickformat="%b %d",
-            range=[str(date_range[0]), str(date_range[1])],
         ),
         yaxis=dict(
             title="Mentions",
