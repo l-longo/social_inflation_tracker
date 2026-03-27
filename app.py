@@ -87,7 +87,7 @@ def load_mentions(subreddit: str) -> pd.DataFrame:
         return pd.DataFrame(columns=["date", "mentions_comments", "mentions_submissions", "mentions_total"])
     df = pd.read_parquet(path)
     df["date"] = pd.to_datetime(df["date"])
-    df = df[df["date"].dt.year >= 2026]
+    df = df[df["date"] > pd.Timestamp("2026-03-01")]
     return df.sort_values("date").reset_index(drop=True)
 
 
