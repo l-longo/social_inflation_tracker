@@ -278,7 +278,7 @@ KEYWORDS_TRACKED = [
 
 LLM_MODELS = {
     "gpt-oss-120b":              "GPT OSS 120B",
-    "llama-3.3-70b-instruct-ui": "Llama 3.3 70B Instruct",
+    "llama-3.3-70b-instruct": "Llama 3.3 70B Instruct",
     "minimax-m2":                "MiniMax M2",
     "mistral-small-3.2-24b":     "Mistral Small 3.2 24B",
 }
