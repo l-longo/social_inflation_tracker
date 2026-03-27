@@ -320,7 +320,7 @@ def load_conversations(subreddit: str) -> pd.DataFrame:
     return df
 
 
-def build_context_block(subs: list, only_inflation: bool = True) -> str:
+def build_context_block(subs: list, only_inflation: bool = True, max_threads: int = MAX_CONTEXT_THREADS) -> str:
     parts = []
     for sub in subs:
         df = load_conversations(sub)
@@ -330,12 +330,20 @@ def build_context_block(subs: list, only_inflation: bool = True) -> str:
             df = df[df["has_inflation_keywords"]]
         if "created_utc" in df.columns:
             df = df.sort_values("created_utc", ascending=False)
-        df = df.head(MAX_CONTEXT_THREADS)
+        df = df.head(max_threads)
         for _, row in df.iterrows():
             conv = row.get("conversation", "")
             if conv:
                 parts.append(f"── r/{sub} ──\n{conv}\n")
     return "\n".join(parts) if parts else "(No conversation data available yet.)"
+
+
+def _is_context_length_error(exc: Exception) -> bool:
+    """Return True if the exception is a context-window overflow (HTTP 400)."""
+    msg = str(exc).lower()
+    return "maximum context length" in msg or (
+        "400" in msg and "input tokens" in msg
+    )
 
 
 def get_llm_client():
@@ -730,35 +738,58 @@ with tab_chat:
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
 
-        context = build_context_block(chat_subs, only_inflation=True)
         sub_list = ", ".join(f"r/{s}" for s in chat_subs)
-        system_prompt = (
-            "You are a senior economic analyst assistant embedded in the Social Inflation Tracker.\n"
-            f"You have access to recent Reddit conversations from: {sub_list}.\n\n"
-            "These threads discuss inflation, price levels, monetary policy, and related topics.\n"
-            "Use them as your primary evidence base. Cite specific posts or users when relevant.\n"
-            "If the data does not contain sufficient information, state that clearly.\n\n"
-            "Be analytical and concise. Distinguish dominant views from minority ones.\n"
-            "Avoid speculation beyond what the data supports.\n\n"
-            "═══ RECENT CONVERSATIONS ═══\n"
-            f"{context}\n"
-            "═══ END OF CONVERSATIONS ═══"
-        )
 
-        api_messages = [{"role": "system", "content": system_prompt}]
-        api_messages += st.session_state.chat_history[-20:]
+        def _build_api_messages(n_threads: int) -> list:
+            context = build_context_block(chat_subs, only_inflation=True, max_threads=n_threads)
+            system_prompt = (
+                "You are a senior economic analyst assistant embedded in the Social Inflation Tracker.\n"
+                f"You have access to recent Reddit conversations from: {sub_list}.\n\n"
+                "These threads discuss inflation, price levels, monetary policy, and related topics.\n"
+                "Use them as your primary evidence base. Cite specific posts or users when relevant.\n"
+                "If the data does not contain sufficient information, state that clearly.\n\n"
+                "Be analytical and concise. Distinguish dominant views from minority ones.\n"
+                "Avoid speculation beyond what the data supports.\n\n"
+                "═══ RECENT CONVERSATIONS ═══\n"
+                f"{context}\n"
+                "═══ END OF CONVERSATIONS ═══"
+            )
+            msgs = [{"role": "system", "content": system_prompt}]
+            msgs += st.session_state.chat_history[-20:]
+            return msgs
 
-        with st.spinner("Analysing..."):
-            try:
-                response = client.chat.completions.create(
-                    model=selected_model_key,
-                    messages=api_messages,
-                    temperature=0.3,
-                    max_tokens=1200,
+        with st.spinner("Analysing…"):
+            reply = None
+            n_threads = MAX_CONTEXT_THREADS
+            min_threads = 2  # never go below this
+
+            while n_threads >= min_threads:
+                try:
+                    response = client.chat.completions.create(
+                        model=selected_model_key,
+                        messages=_build_api_messages(n_threads),
+                        temperature=0.3,
+                        max_tokens=1200,
+                    )
+                    reply = response.choices[0].message.content
+                    break  # success — exit the retry loop
+                except Exception as exc:
+                    if _is_context_length_error(exc) and n_threads > min_threads:
+                        n_threads = max(min_threads, n_threads // 2)
+                        # keep retrying silently with fewer threads
+                        continue
+                    # Any other error — surface a clean message
+                    reply = (
+                        "⚠️ The model returned an error. Please try again or "
+                        "rephrase your question."
+                    )
+                    break
+
+            if reply is None:
+                reply = (
+                    "⚠️ Could not fit enough context into the model's window. "
+                    "Try narrowing the community scope or asking a shorter question."
                 )
-                reply = response.choices[0].message.content
-            except Exception as exc:
-                reply = f"Error communicating with the model: {exc}"
 
         st.session_state.chat_history.append({"role": "assistant", "content": reply})
         st.rerun()
