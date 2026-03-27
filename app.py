@@ -257,9 +257,8 @@ div[data-testid="stChatInput"] textarea::placeholder {
 DATA_DIR = pathlib.Path(__file__).parent / "data"
 
 SUBREDDITS_US = {
-    "economy":        {"color": "#4f8ef7", "label": "r/economy"},
-    "economics":      {"color": "#38bdf8", "label": "r/economics"},
-    "wallstreetbets": {"color": "#22d3a0", "label": "r/wallstreetbets"},
+    "economy":   {"color": "#4f8ef7", "label": "r/economy"},
+    "economics": {"color": "#38bdf8", "label": "r/economics"},
 }
 
 SUBREDDITS_EU = {
@@ -269,6 +268,8 @@ SUBREDDITS_EU = {
     "germany": {"color": "#34d399", "label": "r/germany"},
     "france":  {"color": "#f97316", "label": "r/france"},
 }
+
+ALL_SUBREDDITS = {**SUBREDDITS_US, **SUBREDDITS_EU}
 
 KEYWORDS_TRACKED = [
     "inflation", "hyperinflation", "disinflation",
@@ -463,6 +464,26 @@ with st.sidebar:
     st.code(", ".join(KEYWORDS_TRACKED), language=None)
 
     st.markdown("---")
+    # File status — shows which parquet files are present/missing
+    st.markdown("**Data files**")
+    all_known = list(SUBREDDITS_US.keys()) + list(SUBREDDITS_EU.keys())
+    for sub in all_known:
+        found = (DATA_DIR / f"{sub}_daily_mentions.parquet").exists()
+        dot   = "&#9679;"
+        color = "#34d399" if found else "#f87171"
+        label = ALL_SUBREDDITS.get(sub, {}).get("label", f"r/{sub}")
+        st.markdown(
+            f"<span style='color:{color};font-size:0.7rem;'>{dot}</span>"
+            f"<span style='font-size:0.78rem;color:#c8cdd8;margin-left:6px;'>{label}</span>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("")
+    if st.button("Reload data"):
+        st.cache_data.clear()
+        st.rerun()
+
+    st.markdown("---")
     st.caption("Data sourced from Reddit via PRAW · Updated periodically")
 
 
@@ -598,7 +619,7 @@ with tab_dashboard:
 
     render_region(
         selected_us, SUBREDDITS_US, "region-header-us",
-        "United States", "r/economy · r/economics · r/wallstreetbets",
+        "United States", "r/economy · r/economics",
     )
     render_region(
         selected_eu, SUBREDDITS_EU, "region-header-eu",
