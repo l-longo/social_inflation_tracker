@@ -339,11 +339,37 @@ def build_context_block(subs: list, only_inflation: bool = True, max_threads: in
 
 
 def _is_context_length_error(exc: Exception) -> bool:
-    """Return True if the exception is a context-window overflow (HTTP 400)."""
+    """Return True if the exception is a context-window overflow."""
     msg = str(exc).lower()
-    return "maximum context length" in msg or (
-        "400" in msg and "input tokens" in msg
-    )
+    triggers = [
+        "maximum context length",
+        "context_length_exceeded",
+        "context window",
+        "too many tokens",
+        "input too long",
+        "prompt is too long",
+        "reduce the length",
+    ]
+    if any(t in msg for t in triggers):
+        return True
+    # Some gateways return HTTP 400 with token-related text
+    if "400" in msg and any(w in msg for w in ("token", "context", "length")):
+        return True
+    return False
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    """Return True for 429 / rate-limit responses."""
+    msg = str(exc).lower()
+    return "429" in msg or "rate limit" in msg or "too many requests" in msg
+
+
+def _is_transient_error(exc: Exception) -> bool:
+    """Return True for timeouts and connection errors worth retrying."""
+    msg = str(exc).lower()
+    return any(w in msg for w in (
+        "timeout", "timed out", "connection", "502", "503", "504", "service unavailable"
+    ))
 
 
 def get_llm_client():
@@ -759,37 +785,75 @@ with tab_chat:
             return msgs
 
         with st.spinner("Analysing…"):
+            import time as _time
+
             reply = None
+            last_error: str = ""
             n_threads = MAX_CONTEXT_THREADS
-            min_threads = 2  # never go below this
+            min_threads = 2
+            transient_retries = 2   # how many times to retry on timeout / 5xx
+            rate_limit_wait  = 8    # seconds to wait on 429
+
+            def _call(n_t: int) -> str:
+                response = client.chat.completions.create(
+                    model=selected_model_key,
+                    messages=_build_api_messages(n_t),
+                    temperature=0.3,
+                    max_tokens=1200,
+                    timeout=60,
+                )
+                return response.choices[0].message.content
 
             while n_threads >= min_threads:
                 try:
-                    response = client.chat.completions.create(
-                        model=selected_model_key,
-                        messages=_build_api_messages(n_threads),
-                        temperature=0.3,
-                        max_tokens=1200,
-                    )
-                    reply = response.choices[0].message.content
-                    break  # success — exit the retry loop
-                except Exception as exc:
-                    if _is_context_length_error(exc) and n_threads > min_threads:
-                        n_threads = max(min_threads, n_threads // 2)
-                        # keep retrying silently with fewer threads
-                        continue
-                    # Any other error — surface a clean message
-                    reply = (
-                        "⚠️ The model returned an error. Please try again or "
-                        "rephrase your question."
-                    )
+                    reply = _call(n_threads)
                     break
 
+                except Exception as exc:
+                    last_error = repr(exc)
+
+                    if _is_context_length_error(exc):
+                        if n_threads > min_threads:
+                            n_threads = max(min_threads, n_threads // 2)
+                            continue          # retry with fewer threads
+                        # Already at minimum — try trimming chat history too
+                        st.session_state.chat_history = st.session_state.chat_history[-6:]
+                        try:
+                            reply = _call(n_threads)
+                        except Exception as exc2:
+                            last_error = repr(exc2)
+                        break
+
+                    elif _is_rate_limit_error(exc):
+                        _time.sleep(rate_limit_wait)
+                        try:
+                            reply = _call(n_threads)
+                        except Exception as exc2:
+                            last_error = repr(exc2)
+                        break
+
+                    elif _is_transient_error(exc) and transient_retries > 0:
+                        transient_retries -= 1
+                        _time.sleep(3)
+                        continue              # retry same n_threads
+
+                    else:
+                        break                 # non-recoverable — fall through
+
+            # ── Store last error for debugging ────────────────────────────────
+            st.session_state["last_llm_error"] = last_error if not reply else ""
+
             if reply is None:
-                reply = (
-                    "⚠️ Could not fit enough context into the model's window. "
-                    "Try narrowing the community scope or asking a shorter question."
-                )
+                if _is_context_length_error(Exception(last_error)):
+                    reply = (
+                        "⚠️ The model's context window is full. "
+                        "Try narrowing the community scope, or click **Clear conversation** to start fresh."
+                    )
+                else:
+                    reply = (
+                        "⚠️ The model returned an error. "
+                        "Please try again in a moment."
+                    )
 
         st.session_state.chat_history.append({"role": "assistant", "content": reply})
         st.rerun()
@@ -801,7 +865,12 @@ with tab_chat:
         st.code(selected_model_key, language=None)
         if st.button("Clear conversation"):
             st.session_state.chat_history = []
+            st.session_state["last_llm_error"] = ""
             st.rerun()
+        last_err = st.session_state.get("last_llm_error", "")
+        if last_err:
+            with st.expander("⚠️ Last API error (debug)", expanded=False):
+                st.code(last_err, language=None)
 
 
 # ─── FOOTER ───────────────────────────────────────────────────────────────────
