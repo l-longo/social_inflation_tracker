@@ -551,16 +551,17 @@ with tab_dashboard:
             f'<div class="{header_class}"><h2>{region_name}</h2><p>{description}</p></div>',
             unsafe_allow_html=True,
         )
-        kpi_cols = st.columns(len(active) * 3)
-        for i, sub in enumerate(active):
+        # PUT THIS INSTEAD:
+        for sub in active:
             df = datasets[sub]
             label = region_meta[sub]["label"]
             total = int(df["mentions_total"].sum()) if not df.empty else 0
             avg   = round(df["mentions_total"].mean(), 1) if not df.empty else 0.0
             peak  = int(df["mentions_total"].max()) if not df.empty else 0
-            kpi_cols[i * 3 + 0].metric(f"{label}  ·  Total",     f"{total:,}")
-            kpi_cols[i * 3 + 1].metric(f"{label}  ·  Daily avg", f"{avg:,}")
-            kpi_cols[i * 3 + 2].metric(f"{label}  ·  Peak day",  f"{peak:,}")
+            c1, c2, c3, _ = st.columns([1, 1, 1, 3])
+            c1.metric(f"{label}  ·  Total",     f"{total:,}")
+            c2.metric(f"{label}  ·  Daily avg", f"{avg:,}")
+            c3.metric(f"{label}  ·  Peak day",  f"{peak:,}")
 
         st.markdown("")
 
