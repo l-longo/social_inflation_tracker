@@ -151,19 +151,28 @@ h2, h3, h4, h5 { color: #e0e4f0 !important; font-weight: 600 !important; }
     letter-spacing: 0.06em;
 }
 
-/* ── Chat input box ── */
-[data-testid="stChatInput"] {
-    background: #1a1d28 !important;
-    border: 1px solid #2a2f4a !important;
+/* ── Chat input box — white bg, black text, unambiguous ── */
+[data-testid="stChatInput"],
+[data-testid="stChatInputContainer"],
+div[data-testid="stChatInput"] > div {
+    background: #ffffff !important;
+    border: 1px solid #c8cdd8 !important;
     border-radius: 8px !important;
 }
 [data-testid="stChatInput"] textarea,
-[data-testid="stChatInputTextArea"] {
-    color: #e8eaf0 !important;
-    caret-color: #ffffff !important;
-    background: transparent !important;
+[data-testid="stChatInputTextArea"],
+textarea[data-testid="stChatInputTextArea"],
+div[data-testid="stChatInput"] textarea {
+    color: #111111 !important;
+    caret-color: #111111 !important;
+    background: #ffffff !important;
+    -webkit-text-fill-color: #111111 !important;
 }
-[data-testid="stChatInput"] textarea::placeholder { color: #56607a !important; }
+[data-testid="stChatInput"] textarea::placeholder,
+div[data-testid="stChatInput"] textarea::placeholder {
+    color: #999aaa !important;
+    -webkit-text-fill-color: #999aaa !important;
+}
 
 /* ── Custom chat bubbles ── */
 .chat-window {
@@ -248,8 +257,9 @@ h2, h3, h4, h5 { color: #e0e4f0 !important; font-weight: 600 !important; }
 DATA_DIR = pathlib.Path(__file__).parent / "data"
 
 SUBREDDITS_US = {
-    "economy":   {"color": "#4f8ef7", "label": "r/economy"},
-    "economics": {"color": "#38bdf8", "label": "r/economics"},
+    "economy":        {"color": "#4f8ef7", "label": "r/economy"},
+    "economics":      {"color": "#38bdf8", "label": "r/economics"},
+    "wallstreetbets": {"color": "#22d3a0", "label": "r/wallstreetbets"},
 }
 
 SUBREDDITS_EU = {
@@ -483,12 +493,17 @@ with tab_dashboard:
     all_dates = pd.concat(non_empty, ignore_index=True)
     date_min, date_max = all_dates.min().date(), all_dates.max().date()
 
+    import datetime as _dt
+    # Default view starts at March 2026; slider allows going back to January if needed
+    _march = _dt.date(2026, 3, 1)
+    default_start = max(date_min, _march)
+
     if date_min < date_max:
         date_range = st.slider(
             "Date range",
             min_value=date_min,
             max_value=date_max,
-            value=(date_min, date_max),
+            value=(default_start, date_max),
             format="YYYY-MM-DD",
         )
     else:
@@ -583,7 +598,7 @@ with tab_dashboard:
 
     render_region(
         selected_us, SUBREDDITS_US, "region-header-us",
-        "United States", "r/economy · r/economics",
+        "United States", "r/economy · r/economics · r/wallstreetbets",
     )
     render_region(
         selected_eu, SUBREDDITS_EU, "region-header-eu",
