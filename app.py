@@ -278,7 +278,7 @@ KEYWORDS_TRACKED = [
 
 LLM_MODELS = {
     "gpt-oss-120b":              "GPT OSS 120B",
-    "llama-3.3-70b-instruct-ui": "Llama 3.3 70B Instruct",
+    "llama-3.3-70b-instruct": "Llama 3.3 70B Instruct",
     "minimax-m2":                "MiniMax M2",
     "mistral-small-3.2-24b":     "Mistral Small 3.2 24B",
 }
@@ -296,8 +296,6 @@ SAMPLE_QUESTIONS = [
 
 
 # ─── DATA LOADING ─────────────────────────────────────────────────────────────
-DISPLAY_START = pd.Timestamp("2026-03-01")
-
 @st.cache_data(ttl=300)
 def load_mentions(subreddit: str) -> pd.DataFrame:
     path = DATA_DIR / f"{subreddit}_daily_mentions.parquet"
@@ -306,10 +304,8 @@ def load_mentions(subreddit: str) -> pd.DataFrame:
             columns=["date", "mentions_comments", "mentions_submissions", "mentions_total"]
         )
     df = pd.read_parquet(path)
-    # date column may arrive as Python datetime.date objects (object dtype) — normalise
     df["date"] = pd.to_datetime(df["date"])
-    # Hard floor: only show from March 2026 — strips any legacy data
-    df = df[df["date"] >= DISPLAY_START]
+    # No hard date cutoff — the slider controls the visible range
     return df.sort_values("date").reset_index(drop=True)
 
 
@@ -488,8 +484,6 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.markdown("**Data directory**")
-    st.code(str(DATA_DIR.resolve()), language=None)
     st.caption("Data sourced from Reddit via PRAW · Updated periodically")
 
 
@@ -520,12 +514,17 @@ with tab_dashboard:
     all_dates = pd.concat(non_empty, ignore_index=True)
     date_min, date_max = all_dates.min().date(), all_dates.max().date()
 
+    import datetime as _dt
+    # Default view starts at March 2026; slider allows going back to January if needed
+    _march = _dt.date(2026, 3, 1)
+    default_start = max(date_min, _march)
+
     if date_min < date_max:
         date_range = st.slider(
             "Date range",
             min_value=date_min,
             max_value=date_max,
-            value=(date_min, date_max),
+            value=(default_start, date_max),
             format="YYYY-MM-DD",
         )
     else:
@@ -534,7 +533,7 @@ with tab_dashboard:
     for sub in list(datasets.keys()):
         df = datasets[sub]
         if not df.empty:
-            mask = (df["date"] >= pd.Timestamp(date_range[0])) & (df["date"] <= pd.Timestamp(date_range[1]))
+            mask = (df["date"].dt.date >= date_range[0]) & (df["date"].dt.date <= date_range[1])
             datasets[sub] = df.loc[mask]
 
     y_max = 0
@@ -552,20 +551,16 @@ with tab_dashboard:
             f'<div class="{header_class}"><h2>{region_name}</h2><p>{description}</p></div>',
             unsafe_allow_html=True,
         )
-        # Render KPIs in rows of max 3 subreddits (9 columns) to avoid overflow
-        SUBS_PER_ROW = 3
-        for row_start in range(0, len(active), SUBS_PER_ROW):
-            row_subs = active[row_start:row_start + SUBS_PER_ROW]
-            kpi_cols = st.columns(len(row_subs) * 3)
-            for i, sub in enumerate(row_subs):
-                df = datasets[sub]
-                label = region_meta[sub]["label"]
-                total = int(df["mentions_total"].sum()) if not df.empty else 0
-                avg   = round(df["mentions_total"].mean(), 1) if not df.empty else 0.0
-                peak  = int(df["mentions_total"].max()) if not df.empty else 0
-                kpi_cols[i * 3 + 0].metric(f"{label}  ·  Total",     f"{total:,}")
-                kpi_cols[i * 3 + 1].metric(f"{label}  ·  Daily avg", f"{avg:,}")
-                kpi_cols[i * 3 + 2].metric(f"{label}  ·  Peak day",  f"{peak:,}")
+        kpi_cols = st.columns(len(active) * 3)
+        for i, sub in enumerate(active):
+            df = datasets[sub]
+            label = region_meta[sub]["label"]
+            total = int(df["mentions_total"].sum()) if not df.empty else 0
+            avg   = round(df["mentions_total"].mean(), 1) if not df.empty else 0.0
+            peak  = int(df["mentions_total"].max()) if not df.empty else 0
+            kpi_cols[i * 3 + 0].metric(f"{label}  ·  Total",     f"{total:,}")
+            kpi_cols[i * 3 + 1].metric(f"{label}  ·  Daily avg", f"{avg:,}")
+            kpi_cols[i * 3 + 2].metric(f"{label}  ·  Peak day",  f"{peak:,}")
 
         st.markdown("")
 
