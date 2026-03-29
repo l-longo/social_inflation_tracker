@@ -1074,7 +1074,7 @@ with tab_forecast:
     st.markdown(
         "Select a country, a language model, and a forecast type. "
         "The tracker will run **30 independent simulations** at randomly varied temperatures "
-        "(0.3 – 0.8) and display the forecast distribution with confidence bands. "
+        "(0.1 – 0.9) and display the forecast distribution with confidence bands. "
         "Conditional forecasts additionally ground the LLM with recent Reddit conversations."
     )
 
@@ -1166,7 +1166,7 @@ with tab_forecast:
         status_slot   = st.empty()
 
         for i in range(30):
-            temp = random.uniform(0.3, 0.8)
+            temp = random.uniform(0.1, 0.9)
             try:
                 val, next_date_result, reasoning = run_single_forecast(
                     client_fc, fc_model_key, series_df,
@@ -1188,7 +1188,7 @@ with tab_forecast:
             except Exception as exc:
                 errors.append(f"Run {i+1}: {repr(exc)}")
             progress_bar.progress((i + 1) / 30, text=f"Simulation {i+1} / 30")
-            _time.sleep(1.5)
+            _time.sleep(0.5)
 
         progress_bar.empty()
         status_slot.empty()
