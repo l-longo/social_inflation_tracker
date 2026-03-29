@@ -347,7 +347,7 @@ FORECAST_LLM_MODELS = {
 }
 
 LLM_BASE_URL = "https://api-gpt.jrc.ec.europa.eu/v1"
-MAX_CONTEXT_THREADS = 30
+MAX_CONTEXT_THREADS = 60
 
 SAMPLE_QUESTIONS = [
     "Are users expecting higher or lower inflation in the coming months?",
