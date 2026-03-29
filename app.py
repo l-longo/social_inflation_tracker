@@ -486,7 +486,7 @@ def run_single_forecast(
     )
     if context_text:
         user_msg += (
-            "Recent Reddit discussions about inflation in this country/region "
+            "Do your forecast taking seriously into account recent Reddit discussions about inflation in this country/region "
             "(last 24 h):\n\n"
             f"{context_text[:3500]}\n\n"
         )
@@ -1033,7 +1033,7 @@ with tab_chat:
 
                     elif _is_transient_error(exc) and transient_retries > 0:
                         transient_retries -= 1
-                        _time.sleep(3)
+                        _time.sleep(15)
                         continue              # retry same n_threads
 
                     else:
@@ -1194,7 +1194,7 @@ with tab_forecast:
             except Exception as exc:
                 errors.append(f"Run {i+1}: {repr(exc)}")
             progress_bar.progress((i + 1) / 30, text=f"Simulation {i+1} / 30")
-            _time.sleep(1.5)
+            _time.sleep(3)
 
         progress_bar.empty()
         status_slot.empty()
