@@ -386,17 +386,24 @@ def load_conversations(subreddit: str) -> pd.DataFrame:
 # ─── INFLATION DATA FETCHERS ──────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
 def fetch_us_cpi() -> pd.DataFrame:
-    """Fetch US CPI from FRED and compute YoY % change."""
-    url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCSL"
+    """Fetch US CPI YoY % from OECD SDMX REST API (monthly, all-items)."""
+    # GY = growth rate vs same period of previous year (YoY %)
+    url = (
+        "https://sdmx.oecd.org/public/rest/data/"
+        "OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0/"
+        "USA.M.N.CPI.PA._T.N.GY"
+        "?format=csvfilewithlabels&startPeriod=2010-01"
+    )
     resp = requests.get(url, timeout=60, headers={"User-Agent": "Mozilla/5.0"})
     resp.raise_for_status()
     df = pd.read_csv(StringIO(resp.text))
-    df["date"] = pd.to_datetime(df["observation_date"])
-    df["value"] = pd.to_numeric(df["CPIAUCSL"], errors="coerce")
-    df = df.dropna(subset=["value"]).sort_values("date")
-    df["inflation"] = 100 * (df["value"] / df["value"].shift(12) - 1)
+    # Column names vary; find time and obs-value columns robustly
+    time_col  = next(c for c in df.columns if "TIME" in c.upper() or "PERIOD" in c.upper())
+    value_col = next(c for c in df.columns if "OBS" in c.upper() and "VALUE" in c.upper())
+    df["date"]      = pd.to_datetime(df[time_col])
+    df["inflation"] = pd.to_numeric(df[value_col], errors="coerce")
     df = df.dropna(subset=["inflation"])
-    return df[["date", "inflation"]].reset_index(drop=True)
+    return df[["date", "inflation"]].sort_values("date").reset_index(drop=True)
 
 
 @st.cache_data(ttl=3600)
@@ -1074,7 +1081,7 @@ with tab_forecast:
             "Forecast type",
             options=["Unconditional", "Conditional on Reddit"],
             index=0,
-            key="fc_type",
+            key="fc_type_radio",
         )
 
     fc_meta   = FORECAST_COUNTRIES[fc_country]
@@ -1102,8 +1109,8 @@ with tab_forecast:
         )
     with clear_col:
         if st.button("✕  Clear results", use_container_width=True):
-            for k in ["fc_results", "fc_temps", "fc_series", "fc_country",
-                      "fc_model", "fc_type_done", "fc_next_date", "fc_errors"]:
+            for k in ["fc_results", "fc_temps", "fc_series", "fc_country_done",
+                      "fc_model_done", "fc_type_done", "fc_next_date", "fc_errors"]:
                 st.session_state.pop(k, None)
             st.rerun()
 
@@ -1159,8 +1166,8 @@ with tab_forecast:
         st.session_state.fc_results    = results
         st.session_state.fc_temps      = temps
         st.session_state.fc_series     = series_df
-        st.session_state.fc_country    = fc_country
-        st.session_state.fc_model      = fc_model_key
+        st.session_state.fc_country_done = fc_country
+        st.session_state.fc_model_done   = fc_model_key
         st.session_state.fc_type_done  = fc_type
         st.session_state.fc_next_date  = next_date_result
         st.session_state.fc_errors     = errors
@@ -1172,8 +1179,8 @@ with tab_forecast:
         temps        = st.session_state.fc_temps
         series_df    = st.session_state.fc_series
         next_date    = st.session_state.fc_next_date
-        done_country = st.session_state.fc_country
-        done_model   = st.session_state.fc_model
+        done_country = st.session_state.fc_country_done
+        done_model   = st.session_state.fc_model_done
         done_type    = st.session_state.fc_type_done
         errors_fc    = st.session_state.get("fc_errors", [])
 
