@@ -472,10 +472,16 @@ def run_single_forecast(
         "(e.g. FORECAST: 2.4). Do not add any text after that line."
     )
 
+    current_month_str = _dt.date.today().strftime("%B %Y")
+
     user_msg = (
-        f"Here is the monthly {measure} inflation rate (YoY %) for {country_name}.\n"
-        f"Last available observation: {last_date.strftime('%B %Y')} = {last_value:.2f}%\n\n"
-        f"Historical series (last 36 months):\n{series_text}\n\n"
+        f"Assume that you are in {current_month_str}. "
+        f"Please give me your best forecast of year-over-year {measure} inflation "
+        f"in {country_name} for the current month.\n\n"
+        f"Here is the historical series to inform your forecast "
+        f"(last 36 months of available data, last observation: "
+        f"{last_date.strftime('%B %Y')} = {last_value:.2f}%):\n\n"
+        f"{series_text}\n\n"
     )
     if context_text:
         user_msg += (
@@ -484,7 +490,6 @@ def run_single_forecast(
             f"{context_text[:3500]}\n\n"
         )
     user_msg += (
-        f"Forecast the {measure} inflation rate (YoY %) for {next_month_str}. "
         "Reason briefly, then write your final answer as:\n"
         "FORECAST: <number>"
     )
@@ -1074,7 +1079,7 @@ with tab_forecast:
     st.markdown(
         "Select a country, a language model, and a forecast type. "
         "The tracker will run **30 independent simulations** at randomly varied temperatures "
-        "(0.1 – 0.9) and display the forecast distribution with confidence bands. "
+        "(0.3 – 0.8) and display the forecast distribution with confidence bands. "
         "Conditional forecasts additionally ground the LLM with recent Reddit conversations."
     )
 
@@ -1166,7 +1171,7 @@ with tab_forecast:
         status_slot   = st.empty()
 
         for i in range(30):
-            temp = random.uniform(0.1, 0.9)
+            temp = random.uniform(0.3, 0.8)
             try:
                 val, next_date_result, reasoning = run_single_forecast(
                     client_fc, fc_model_key, series_df,
@@ -1188,7 +1193,7 @@ with tab_forecast:
             except Exception as exc:
                 errors.append(f"Run {i+1}: {repr(exc)}")
             progress_bar.progress((i + 1) / 30, text=f"Simulation {i+1} / 30")
-            _time.sleep(0.5)
+            _time.sleep(1.5)
 
         progress_bar.empty()
         status_slot.empty()
