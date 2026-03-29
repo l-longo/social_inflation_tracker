@@ -464,7 +464,7 @@ def run_single_forecast(
     system_msg = (
         "You are a senior macroeconomic forecaster. "
         "When asked for an inflation forecast you must:\n"
-        "1. Briefly reason about recent trend, base effects, and any relevant macro context "
+        "1. Briefly reason your choice."
         "(3–5 sentences).\n"
         "2. End your response with exactly one line in the format:\n"
         "   FORECAST: <number>\n"
@@ -1171,7 +1171,7 @@ with tab_forecast:
         status_slot   = st.empty()
 
         for i in range(30):
-            temp = random.uniform(0.3, 0.8)
+            temp = random.uniform(0.1, 0.9)
             try:
                 val, next_date_result, reasoning = run_single_forecast(
                     client_fc, fc_model_key, series_df,
@@ -1193,7 +1193,7 @@ with tab_forecast:
             except Exception as exc:
                 errors.append(f"Run {i+1}: {repr(exc)}")
             progress_bar.progress((i + 1) / 30, text=f"Simulation {i+1} / 30")
-            _time.sleep(1.5)
+            _time.sleep(0.2)
 
         progress_bar.empty()
         status_slot.empty()
