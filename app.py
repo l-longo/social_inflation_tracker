@@ -1193,7 +1193,7 @@ with tab_forecast:
                     errors.append(f"Run {i+1}: could not parse number from model output")
             except Exception as exc:
                 errors.append(f"Run {i+1}: {repr(exc)}")
-            progress_bar.progress((i + 1) / n_sim, text=f"Simulation {i+1} / n_sim")
+            progress_bar.progress((i + 1) / n_sim, text=f"Simulation {i+1} / {n_sim}")
             _time.sleep(3)
 
         progress_bar.empty()
