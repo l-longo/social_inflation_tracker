@@ -3,6 +3,7 @@ Social Inflation Tracker — Streamlit Dashboard + Chatbot
 ─────────────────────────────────────────────────────────
 Tab 1: Daily inflation-keyword mention charts (US vs. Europe)
 Tab 2: AI chatbot grounded in Reddit conversation data
+Tab 3: Real-time LLM inflation forecast
 """
 
 import html as html_module
@@ -39,15 +40,11 @@ html, body, [class*="st-"], .stMarkdown, p, li, span, label {
 code, pre, .stMetric [data-testid="stMetricValue"] {
     font-family: 'JetBrains Mono', monospace !important;
 }
-
-/* ── App & header ── */
 .stApp { background-color: #0d0f14; }
 header[data-testid="stHeader"] {
     background: #0d0f14;
     border-bottom: 1px solid #1e2130;
 }
-
-/* ── Sidebar ── */
 section[data-testid="stSidebar"] {
     background: #10121a;
     border-right: 1px solid #1e2130;
@@ -56,8 +53,6 @@ section[data-testid="stSidebar"] * { color: #c8cdd8 !important; }
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3,
 section[data-testid="stSidebar"] strong { color: #ffffff !important; font-weight: 600; }
-
-/* ── Metric cards ── */
 [data-testid="stMetric"] {
     background: rgba(20,23,32,0.5);
     border: 1px solid #252840;
@@ -72,8 +67,6 @@ section[data-testid="stSidebar"] strong { color: #ffffff !important; font-weight
     font-weight: 500;
 }
 [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 600 !important; }
-
-/* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
     background: transparent;
     border-bottom: 1px solid #1e2130;
@@ -92,11 +85,7 @@ section[data-testid="stSidebar"] strong { color: #ffffff !important; font-weight
     color: #ffffff !important;
     border-bottom: 2px solid #4f8ef7 !important;
 }
-
-/* ── Dividers ── */
 hr { border-color: #1e2130 !important; }
-
-/* ── Region header bands ── */
 .region-header-us {
     background: linear-gradient(90deg, #1a2540 0%, #0d0f14 100%);
     border-left: 3px solid #4f8ef7;
@@ -112,53 +101,28 @@ hr { border-color: #1e2130 !important; }
     margin: 28px 0 16px 0;
 }
 .region-header-us h2, .region-header-eu h2 {
-    margin: 0;
-    font-size: 0.95rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: #ffffff !important;
+    margin: 0; font-size: 0.95rem; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; color: #ffffff !important;
 }
 .region-header-us p, .region-header-eu p {
-    margin: 3px 0 0 0;
-    font-size: 0.77rem;
-    color: #8892b0 !important;
+    margin: 3px 0 0 0; font-size: 0.77rem; color: #8892b0 !important;
 }
-
-/* ── Headings ── */
 h1 { color: #ffffff !important; font-weight: 700 !important; letter-spacing: -0.02em; }
 h2, h3, h4, h5 { color: #e0e4f0 !important; font-weight: 600 !important; }
-
-/* ── Selectbox / dropdown ── */
-[data-baseweb="select"] > div {
-    background-color: #1a1d28 !important;
-    border-color: #2a2f4a !important;
-}
-[data-baseweb="select"] span,
-[data-baseweb="select"] div { color: #e8eaf0 !important; }
+[data-baseweb="select"] > div { background-color: #1a1d28 !important; border-color: #2a2f4a !important; }
+[data-baseweb="select"] span, [data-baseweb="select"] div { color: #e8eaf0 !important; }
 [data-baseweb="popover"] ul, [data-baseweb="popover"] li,
 [data-baseweb="menu"] { background: #1a1d28 !important; color: #e8eaf0 !important; }
 [data-baseweb="option"] { background: #1a1d28 !important; color: #e8eaf0 !important; }
 [data-baseweb="option"]:hover { background: #252840 !important; }
-
-/* ── Radio buttons ── */
 [data-testid="stRadio"] label, [data-testid="stRadio"] p { color: #c8cdd8 !important; font-size: 0.85rem; }
-
-/* ── Multiselect ── */
 [data-baseweb="tag"] { background: #252840 !important; }
 [data-baseweb="tag"] span { color: #e8eaf0 !important; }
-
-/* ── Field labels ── */
 .stSelectbox > label, .stRadio > label,
 .stMultiSelect > label, .stSlider > label {
-    color: #c8cdd8 !important;
-    font-size: 0.78rem !important;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    color: #c8cdd8 !important; font-size: 0.78rem !important;
+    font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em;
 }
-
-/* ── Chat input box — white bg, black text, unambiguous ── */
 [data-testid="stChatInput"],
 [data-testid="stChatInputContainer"],
 div[data-testid="stChatInput"] > div {
@@ -170,90 +134,40 @@ div[data-testid="stChatInput"] > div {
 [data-testid="stChatInputTextArea"],
 textarea[data-testid="stChatInputTextArea"],
 div[data-testid="stChatInput"] textarea {
-    color: #111111 !important;
-    caret-color: #111111 !important;
-    background: #ffffff !important;
-    -webkit-text-fill-color: #111111 !important;
+    color: #111111 !important; caret-color: #111111 !important;
+    background: #ffffff !important; -webkit-text-fill-color: #111111 !important;
 }
 [data-testid="stChatInput"] textarea::placeholder,
 div[data-testid="stChatInput"] textarea::placeholder {
-    color: #999aaa !important;
-    -webkit-text-fill-color: #999aaa !important;
+    color: #999aaa !important; -webkit-text-fill-color: #999aaa !important;
 }
-
-/* ── Custom chat bubbles ── */
-.chat-window {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    margin: 8px 0 20px 0;
-}
+.chat-window { display: flex; flex-direction: column; gap: 14px; margin: 8px 0 20px 0; }
 .chat-row { display: flex; width: 100%; }
 .chat-row-user      { justify-content: flex-end; }
 .chat-row-assistant { justify-content: flex-start; }
-.chat-bubble {
-    max-width: 76%;
-    border-radius: 10px;
-    padding: 12px 16px;
-    font-size: 0.88rem;
-    line-height: 1.65;
-}
-.chat-bubble-user {
-    background: #1e3a5f;
-    border: 1px solid #2a4f7a;
-    color: #dce8f8 !important;
-}
-.chat-bubble-assistant {
-    background: #f5f6fa;
-    border: 1px solid #dde1ec;
-    color: #1a1d28 !important;
-}
-.chat-bubble-assistant p,
-.chat-bubble-assistant li,
-.chat-bubble-assistant span,
-.chat-bubble-assistant strong,
-.chat-bubble-assistant em { color: #1a1d28 !important; }
-.chat-label {
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    margin-bottom: 7px;
-    opacity: 0.6;
-}
+.chat-bubble { max-width: 76%; border-radius: 10px; padding: 12px 16px; font-size: 0.88rem; line-height: 1.65; }
+.chat-bubble-user { background: #1e3a5f; border: 1px solid #2a4f7a; color: #dce8f8 !important; }
+.chat-bubble-assistant { background: #f5f6fa; border: 1px solid #dde1ec; color: #1a1d28 !important; }
+.chat-bubble-assistant p, .chat-bubble-assistant li, .chat-bubble-assistant span,
+.chat-bubble-assistant strong, .chat-bubble-assistant em { color: #1a1d28 !important; }
+.chat-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.09em;
+    text-transform: uppercase; margin-bottom: 7px; opacity: 0.6; }
 .chat-bubble-user      .chat-label { color: #90c4e8 !important; }
 .chat-bubble-assistant .chat-label { color: #556080 !important; }
-
-/* ── Sample question buttons ── */
 .stButton > button {
-    background: rgba(20,23,32,0.6) !important;
-    border: 1px solid #2a2f4a !important;
-    border-radius: 6px !important;
-    color: #c8cdd8 !important;
-    font-size: 0.79rem !important;
-    font-weight: 400 !important;
-    padding: 8px 14px !important;
-    text-align: left !important;
-    white-space: normal !important;
-    line-height: 1.45 !important;
-    min-height: 56px !important;
-    width: 100% !important;
+    background: rgba(20,23,32,0.6) !important; border: 1px solid #2a2f4a !important;
+    border-radius: 6px !important; color: #c8cdd8 !important; font-size: 0.79rem !important;
+    font-weight: 400 !important; padding: 8px 14px !important; text-align: left !important;
+    white-space: normal !important; line-height: 1.45 !important;
+    min-height: 56px !important; width: 100% !important;
     transition: border-color 0.15s, background 0.15s !important;
 }
 .stButton > button:hover {
-    background: #1c2035 !important;
-    border-color: #4f8ef7 !important;
-    color: #ffffff !important;
+    background: #1c2035 !important; border-color: #4f8ef7 !important; color: #ffffff !important;
 }
-
-/* ── Alerts ── */
 .stAlert { background: rgba(20,23,32,0.6) !important; border-radius: 6px !important; }
 .stAlert p { color: #e8eaf0 !important; }
-
-/* ── Code blocks ── */
 .stCodeBlock, code { background: #0a0c12 !important; color: #a8d8f0 !important; }
-
-/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #0d0f14; }
 ::-webkit-scrollbar-thumb { background: #2a2f4a; border-radius: 3px; }
@@ -281,7 +195,7 @@ ALL_SUBREDDITS = {**SUBREDDITS_US, **SUBREDDITS_EU}
 FORECAST_COUNTRIES = {
     "United States": {
         "label": "United States (CPI)",
-        "source": "fred",
+        "source": "oecd",
         "code": None,
         "measure": "US CPI",
         "reddit_subs": ["economy", "economics"],
@@ -335,10 +249,10 @@ KEYWORDS_TRACKED = [
 ]
 
 LLM_MODELS = {
-    "gpt-oss-120b":              "GPT OSS 120B",
+    "gpt-oss-120b":           "GPT OSS 120B",
     "llama-3.3-70b-instruct": "Llama 3.3 70B Instruct",
-    "minimax-m2":                "MiniMax M2",
-    "mistral-small-3.2-24b":     "Mistral Small 3.2 24B",
+    "minimax-m2":             "MiniMax M2",
+    "mistral-small-3.2-24b":  "Mistral Small 3.2 24B",
 }
 
 FORECAST_LLM_MODELS = {
@@ -368,7 +282,6 @@ def load_mentions(subreddit: str) -> pd.DataFrame:
         )
     df = pd.read_parquet(path)
     df["date"] = pd.to_datetime(df["date"])
-    # No hard date cutoff — the slider controls the visible range
     return df.sort_values("date").reset_index(drop=True)
 
 
@@ -386,8 +299,7 @@ def load_conversations(subreddit: str) -> pd.DataFrame:
 # ─── INFLATION DATA FETCHERS ──────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
 def fetch_us_cpi() -> pd.DataFrame:
-    """Fetch US CPI YoY % from OECD SDMX REST API (monthly, all-items)."""
-    # GY = growth rate vs same period of previous year (YoY %)
+    """Fetch US CPI YoY % from OECD SDMX REST API."""
     url = (
         "https://sdmx.oecd.org/public/rest/data/"
         "OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0/"
@@ -397,7 +309,6 @@ def fetch_us_cpi() -> pd.DataFrame:
     resp = requests.get(url, timeout=60, headers={"User-Agent": "Mozilla/5.0"})
     resp.raise_for_status()
     df = pd.read_csv(StringIO(resp.text))
-    # Column names vary; find time and obs-value columns robustly
     time_col  = next(c for c in df.columns if "TIME" in c.upper() or "PERIOD" in c.upper())
     value_col = next(c for c in df.columns if "OBS" in c.upper() and "VALUE" in c.upper())
     df["date"]      = pd.to_datetime(df[time_col])
@@ -409,12 +320,18 @@ def fetch_us_cpi() -> pd.DataFrame:
 @st.cache_data(ttl=3600)
 def fetch_hicp(country_code: str) -> pd.DataFrame:
     """Fetch HICP annual rate from ECB API."""
-    series_key = "M.U2.N.000000.4D0.ANR" if country_code == "U2" else f"M.{country_code}.N.000000.4D0.ANR"
+    series_key = (
+        "M.U2.N.000000.4D0.ANR" if country_code == "U2"
+        else f"M.{country_code}.N.000000.4D0.ANR"
+    )
     url = f"https://data-api.ecb.europa.eu/service/data/HICP/{series_key}"
-    resp = requests.get(url, params={"format": "csvdata"}, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+    resp = requests.get(
+        url, params={"format": "csvdata"},
+        headers={"User-Agent": "Mozilla/5.0"}, timeout=30
+    )
     resp.raise_for_status()
     df = pd.read_csv(StringIO(resp.text))
-    df["date"] = pd.to_datetime(df["TIME_PERIOD"])
+    df["date"]      = pd.to_datetime(df["TIME_PERIOD"])
     df["inflation"] = pd.to_numeric(df["OBS_VALUE"], errors="coerce")
     df = df.dropna(subset=["inflation"])
     return df[["date", "inflation"]].sort_values("date").reset_index(drop=True)
@@ -422,7 +339,7 @@ def fetch_hicp(country_code: str) -> pd.DataFrame:
 
 def fetch_inflation_data(country_key: str) -> pd.DataFrame:
     meta = FORECAST_COUNTRIES[country_key]
-    if meta["source"] == "fred":
+    if meta["source"] == "oecd":
         return fetch_us_cpi()
     return fetch_hicp(meta["code"])
 
@@ -433,7 +350,7 @@ def _next_month_date(last_date: pd.Timestamp) -> pd.Timestamp:
     return pd.Timestamp(year=last_date.year, month=last_date.month + 1, day=1)
 
 
-
+# ─── SINGLE FORECAST CALL ────────────────────────────────────────────────────
 def run_single_forecast(
     client,
     model_key: str,
@@ -445,27 +362,23 @@ def run_single_forecast(
     run_index: int = 0,
 ) -> tuple:
     """
-    Send one chain-of-thought prompt to the LLM.
-    Returns (forecast_value, next_date, reasoning_text).
-    The prompt is identical across all 30 runs; temperature variation
-    drives distributional spread through the chain-of-thought reasoning.
+    Returns (value, next_date, reasoning, raw_response).
+    value is None if parsing failed.
     """
     last_n = series_df.tail(36)
     series_text = "\n".join(
         f"  {row['date'].strftime('%Y-%m')}: {row['inflation']:.2f}%"
         for _, row in last_n.iterrows()
     )
-    last_row = series_df.iloc[-1]
-    last_date: pd.Timestamp = last_row["date"]
-    last_value: float = float(last_row["inflation"])
-    next_date = _next_month_date(last_date)
-    next_month_str = next_date.strftime("%B %Y")
+    last_row   = series_df.iloc[-1]
+    last_date  = last_row["date"]
+    last_value = float(last_row["inflation"])
+    next_date  = _next_month_date(last_date)
 
     system_msg = (
         "You are a senior macroeconomic forecaster. "
         "When asked for an inflation forecast you must:\n"
-        "1. Briefly reason your choice."
-        "(3–5 sentences).\n"
+        "1. Briefly reason your choice (3–5 sentences).\n"
         "2. End your response with exactly one line in the format:\n"
         "   FORECAST: <number>\n"
         "where <number> is the year-on-year % inflation rate rounded to one decimal "
@@ -477,8 +390,8 @@ def run_single_forecast(
     user_msg = (
         f"Assume that you are in {current_month_str}. "
         f"Please give me your best forecast of year-over-year {measure} inflation "
-        f"in {country_name} for the current month. Make your forecast considering the current economic environment and "
-        "use all the information you have (i.e. access to news).\n\n"
+        f"in {country_name} for the current month. Make your forecast considering the current "
+        "economic environment and use all the information you have (i.e. access to news).\n\n"
         f"Here is the historical series to inform your forecast "
         f"(last 36 months of available data, last observation: "
         f"{last_date.strftime('%B %Y')} = {last_value:.2f}%):\n\n"
@@ -486,14 +399,11 @@ def run_single_forecast(
     )
     if context_text:
         user_msg += (
-            "Do your forecast taking seriously into account recent Reddit discussions about inflation in this country/region "
-            "(last 24 h):\n\n"
+            "Do your forecast taking seriously into account recent Reddit discussions about "
+            "inflation in this country/region (last 24 h):\n\n"
             f"{context_text[:3500]}\n\n"
         )
-    user_msg += (
-        "Reason briefly, then write your final answer as:\n"
-        "FORECAST: <number>"
-    )
+    user_msg += "Reason briefly, then write your final answer as:\nFORECAST: <number>"
 
     response = client.chat.completions.create(
         model=model_key,
@@ -507,21 +417,24 @@ def run_single_forecast(
     )
     raw = response.choices[0].message.content.strip()
 
-    # Extract FORECAST: <number>; fall back to last number in text
     fc_match = re.search(r"FORECAST\s*:\s*(-?\d+\.?\d*)", raw, re.IGNORECASE)
     if fc_match:
-        value = float(fc_match.group(1))
+        value     = float(fc_match.group(1))
         reasoning = raw[:raw.lower().rfind("forecast")].strip()
     else:
-        nums = re.findall(r"-?\d+\.?\d*", raw)
-        value = float(nums[-1]) if nums else None
+        nums      = re.findall(r"-?\d+\.?\d*", raw)
+        value     = float(nums[-1]) if nums else None
         reasoning = raw
 
-    return value, next_date, reasoning
+    return value, next_date, reasoning, raw
 
 
 # ─── REDDIT CONTEXT BUILDER ───────────────────────────────────────────────────
-def build_context_block(subs: list, only_inflation: bool = True, max_threads: int = MAX_CONTEXT_THREADS) -> str:
+def build_context_block(
+    subs: list,
+    only_inflation: bool = True,
+    max_threads: int = MAX_CONTEXT_THREADS,
+) -> str:
     parts = []
     for sub in subs:
         df = load_conversations(sub)
@@ -540,33 +453,24 @@ def build_context_block(subs: list, only_inflation: bool = True, max_threads: in
 
 
 def _is_context_length_error(exc: Exception) -> bool:
-    """Return True if the exception is a context-window overflow."""
     msg = str(exc).lower()
     triggers = [
-        "maximum context length",
-        "context_length_exceeded",
-        "context window",
-        "too many tokens",
-        "input too long",
-        "prompt is too long",
-        "reduce the length",
+        "maximum context length", "context_length_exceeded", "context window",
+        "too many tokens", "input too long", "prompt is too long", "reduce the length",
     ]
     if any(t in msg for t in triggers):
         return True
-    # Some gateways return HTTP 400 with token-related text
     if "400" in msg and any(w in msg for w in ("token", "context", "length")):
         return True
     return False
 
 
 def _is_rate_limit_error(exc: Exception) -> bool:
-    """Return True for 429 / rate-limit responses."""
     msg = str(exc).lower()
     return "429" in msg or "rate limit" in msg or "too many requests" in msg
 
 
 def _is_transient_error(exc: Exception) -> bool:
-    """Return True for timeouts and connection errors worth retrying."""
     msg = str(exc).lower()
     return any(w in msg for w in (
         "timeout", "timed out", "connection", "502", "503", "504", "service unavailable"
@@ -582,10 +486,7 @@ def get_llm_client():
 
 # ─── CHAT RENDERER ────────────────────────────────────────────────────────────
 def _md_to_html(text: str) -> str:
-    """Minimal Markdown -> HTML for chat bubble rendering."""
     t = html_module.escape(text)
-
-    # Fenced code blocks
     t = re.sub(
         r"```(?:\w+)?\n(.*?)```",
         lambda m: (
@@ -596,19 +497,16 @@ def _md_to_html(text: str) -> str:
         ),
         t, flags=re.DOTALL,
     )
-    # Inline code
     t = re.sub(
         r"`([^`]+)`",
         r"<code style='background:#eef0f6;padding:1px 5px;border-radius:3px;"
         r"font-size:0.84em;font-family:monospace;'>\1</code>",
         t,
     )
-    # Bold & italic
     t = re.sub(r"\*\*\*(.+?)\*\*\*", r"<strong><em>\1</em></strong>", t)
     t = re.sub(r"\*\*(.+?)\*\*",     r"<strong>\1</strong>", t)
     t = re.sub(r"\*(.+?)\*",         r"<em>\1</em>", t)
 
-    # Process line by line for lists
     lines = t.split("\n")
     out, in_ul, in_ol = [], False, False
     ul_style = "margin:6px 0 6px 20px;padding:0;"
@@ -699,7 +597,6 @@ with st.sidebar:
     st.code(", ".join(KEYWORDS_TRACKED), language=None)
 
     st.markdown("---")
-    # File status — shows which parquet files are present/missing
     st.markdown("**Data files**")
     all_known = list(SUBREDDITS_US.keys()) + list(SUBREDDITS_EU.keys())
     for sub in all_known:
@@ -723,7 +620,9 @@ with st.sidebar:
 
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
-tab_dashboard, tab_chat, tab_forecast = st.tabs(["Dashboard", "Conversational Analysis", "⚡ Real-time Forecast"])
+tab_dashboard, tab_chat, tab_forecast = st.tabs([
+    "Dashboard", "Conversational Analysis", "⚡ Real-time Forecast"
+])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -736,7 +635,7 @@ with tab_dashboard:
         "Results are segmented by geographic focus: United States and Europe."
     )
 
-    datasets = {sub: load_mentions(sub) for sub in selected_subs}
+    datasets  = {sub: load_mentions(sub) for sub in selected_subs}
     non_empty = [d["date"] for d in datasets.values() if not d.empty]
 
     if not non_empty:
@@ -749,15 +648,13 @@ with tab_dashboard:
     all_dates = pd.concat(non_empty, ignore_index=True)
     date_min, date_max = all_dates.min().date(), all_dates.max().date()
 
-    # Default view starts at March 2026; slider allows going back to January if needed
-    _march = _dt.date(2026, 3, 1)
+    _march        = _dt.date(2026, 3, 1)
     default_start = max(date_min, _march)
 
     if date_min < date_max:
         date_range = st.slider(
             "Date range",
-            min_value=date_min,
-            max_value=date_max,
+            min_value=date_min, max_value=date_max,
             value=(default_start, date_max),
             format="YYYY-MM-DD",
         )
@@ -767,7 +664,10 @@ with tab_dashboard:
     for sub in list(datasets.keys()):
         df = datasets[sub]
         if not df.empty:
-            mask = (df["date"].dt.date >= date_range[0]) & (df["date"].dt.date <= date_range[1])
+            mask = (
+                (df["date"].dt.date >= date_range[0]) &
+                (df["date"].dt.date <= date_range[1])
+            )
             datasets[sub] = df.loc[mask]
 
     y_max = 0
@@ -785,9 +685,8 @@ with tab_dashboard:
             f'<div class="{header_class}"><h2>{region_name}</h2><p>{description}</p></div>',
             unsafe_allow_html=True,
         )
-        # PUT THIS INSTEAD:
         for sub in active:
-            df = datasets[sub]
+            df    = datasets[sub]
             label = region_meta[sub]["label"]
             total = int(df["mentions_total"].sum()) if not df.empty else 0
             avg   = round(df["mentions_total"].mean(), 1) if not df.empty else 0.0
@@ -800,7 +699,7 @@ with tab_dashboard:
         st.markdown("")
 
         for sub in active:
-            df = datasets[sub]
+            df   = datasets[sub]
             meta = region_meta[sub]
             st.markdown(f"##### {meta['label']}")
             if df.empty:
@@ -882,7 +781,6 @@ with tab_chat:
         )
         st.stop()
 
-    # ── Configuration row ─────────────────────────────────────────────────────
     cfg_c1, cfg_c2, cfg_c3 = st.columns([1, 1, 2])
 
     with cfg_c1:
@@ -908,7 +806,7 @@ with tab_chat:
         else:
             chat_subs = list(SUBREDDITS_US.keys()) + list(SUBREDDITS_EU.keys())
 
-        n_threads = sum(len(load_conversations(s)) for s in chat_subs)
+        n_threads    = sum(len(load_conversations(s)) for s in chat_subs)
         infl_threads = 0
         for s in chat_subs:
             df_c = load_conversations(s)
@@ -925,15 +823,13 @@ with tab_chat:
 
     st.markdown("---")
 
-    # ── Session state ─────────────────────────────────────────────────────────
     state_key = f"{region_choice}_{selected_model_key}"
     if st.session_state.get("active_chat_key") != state_key:
         st.session_state.active_chat_key = state_key
-        st.session_state.chat_history = []
+        st.session_state.chat_history    = []
     if "pending_question" not in st.session_state:
         st.session_state.pending_question = None
 
-    # ── Sample questions ──────────────────────────────────────────────────────
     if not st.session_state.chat_history:
         st.markdown(
             "<p style='font-size:0.76rem;color:#8892b0;font-weight:500;"
@@ -948,10 +844,8 @@ with tab_chat:
                 st.rerun()
         st.markdown("")
 
-    # ── Render conversation ───────────────────────────────────────────────────
     render_chat(st.session_state.chat_history)
 
-    # ── Input ─────────────────────────────────────────────────────────────────
     user_input = None
     typed = st.chat_input("Ask a question about inflation discussions...")
     if typed:
@@ -960,14 +854,12 @@ with tab_chat:
         user_input = st.session_state.pending_question
         st.session_state.pending_question = None
 
-    # ── LLM call ──────────────────────────────────────────────────────────────
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-
         sub_list = ", ".join(f"r/{s}" for s in chat_subs)
 
-        def _build_api_messages(n_threads: int) -> list:
-            context = build_context_block(chat_subs, only_inflation=True, max_threads=n_threads)
+        def _build_api_messages(n_t: int) -> list:
+            context = build_context_block(chat_subs, only_inflation=True, max_threads=n_t)
             system_prompt = (
                 "You are a senior economic analyst assistant embedded in the Social Inflation Tracker.\n"
                 f"You have access to recent Reddit conversations from: {sub_list}.\n\n"
@@ -985,44 +877,39 @@ with tab_chat:
             return msgs
 
         with st.spinner("Analysing…"):
-
-            reply = None
-            last_error: str = ""
-            n_threads = MAX_CONTEXT_THREADS
-            min_threads = 2
-            transient_retries = 2   # how many times to retry on timeout / 5xx
-            rate_limit_wait  = 8    # seconds to wait on 429
+            reply            = None
+            last_error: str  = ""
+            n_threads        = MAX_CONTEXT_THREADS
+            min_threads      = 2
+            transient_retries = 2
+            rate_limit_wait  = 8
 
             def _call(n_t: int) -> str:
-                response = client.chat.completions.create(
+                r = client.chat.completions.create(
                     model=selected_model_key,
                     messages=_build_api_messages(n_t),
                     temperature=0.3,
                     max_tokens=1200,
                     timeout=60,
                 )
-                return response.choices[0].message.content
+                return r.choices[0].message.content
 
             while n_threads >= min_threads:
                 try:
                     reply = _call(n_threads)
                     break
-
                 except Exception as exc:
                     last_error = repr(exc)
-
                     if _is_context_length_error(exc):
                         if n_threads > min_threads:
                             n_threads = max(min_threads, n_threads // 2)
-                            continue          # retry with fewer threads
-                        # Already at minimum — try trimming chat history too
+                            continue
                         st.session_state.chat_history = st.session_state.chat_history[-6:]
                         try:
                             reply = _call(n_threads)
                         except Exception as exc2:
                             last_error = repr(exc2)
                         break
-
                     elif _is_rate_limit_error(exc):
                         _time.sleep(rate_limit_wait)
                         try:
@@ -1030,16 +917,13 @@ with tab_chat:
                         except Exception as exc2:
                             last_error = repr(exc2)
                         break
-
                     elif _is_transient_error(exc) and transient_retries > 0:
                         transient_retries -= 1
                         _time.sleep(15)
-                        continue              # retry same n_threads
-
+                        continue
                     else:
-                        break                 # non-recoverable — fall through
+                        break
 
-            # ── Store last error for debugging ────────────────────────────────
             st.session_state["last_llm_error"] = last_error if not reply else ""
 
             if reply is None:
@@ -1049,21 +933,17 @@ with tab_chat:
                         "Try narrowing the community scope, or click **Clear conversation** to start fresh."
                     )
                 else:
-                    reply = (
-                        "⚠️ The model returned an error. "
-                        "Please try again in a moment."
-                    )
+                    reply = "⚠️ The model returned an error. Please try again in a moment."
 
         st.session_state.chat_history.append({"role": "assistant", "content": reply})
         st.rerun()
 
-    # ── Sidebar chat controls ─────────────────────────────────────────────────
     with st.sidebar:
         st.markdown("---")
         st.markdown("**Active model**")
         st.code(selected_model_key, language=None)
         if st.button("Clear conversation"):
-            st.session_state.chat_history = []
+            st.session_state.chat_history    = []
             st.session_state["last_llm_error"] = ""
             st.rerun()
         last_err = st.session_state.get("last_llm_error", "")
@@ -1078,22 +958,18 @@ with tab_chat:
 with tab_forecast:
     st.markdown("# Real-time Inflation Forecast")
     st.markdown(
-        "Select a country, a language model, and a forecast type. "
-        "The tracker will run **30 independent simulations** at randomly varied temperatures "
-        "(0.3 – 0.8) and display the forecast distribution with confidence bands. "
-        "Conditional forecasts additionally ground the LLM with recent Reddit conversations."
+        "The tracker keeps running until **exactly n_sim valid forecasts** are collected. "
+        "Failed attempts (parse errors, timeouts, rate limits) are retried automatically — "
+        "up to 5× per slot — so the final CSV always contains the requested number of rows."
     )
 
     client_fc = get_llm_client()
     if client_fc is None:
-        st.error(
-            "JRC_TOKEN is not configured. "
-            "Add your JWT token under Streamlit Cloud → Settings → Secrets."
-        )
+        st.error("JRC_TOKEN is not configured.")
         st.stop()
 
     # ── Config row ────────────────────────────────────────────────────────────
-    fc_c1, fc_c2, fc_c3 = st.columns([1, 1, 1])
+    fc_c1, fc_c2, fc_c3, fc_c4 = st.columns([1, 1, 1, 1])
 
     with fc_c1:
         fc_country = st.selectbox(
@@ -1118,12 +994,18 @@ with tab_forecast:
             key="fc_type_radio",
         )
 
-    fc_meta   = FORECAST_COUNTRIES[fc_country]
-    fc_color  = fc_meta["color"]
-    fc_subs   = fc_meta["reddit_subs"]
+    with fc_c4:
+        n_sim = st.number_input(
+            "Simulations (n)",
+            min_value=5, max_value=200, value=30, step=5,
+            key="fc_n_sim",
+        )
+
+    fc_meta    = FORECAST_COUNTRIES[fc_country]
+    fc_color   = fc_meta["color"]
+    fc_subs    = fc_meta["reddit_subs"]
     fc_measure = fc_meta["measure"]
 
-    # Context info
     if fc_type == "Conditional on Reddit":
         n_ctx = sum(len(load_conversations(s)) for s in fc_subs)
         st.caption(
@@ -1133,24 +1015,28 @@ with tab_forecast:
 
     st.markdown("---")
 
-    # ── Run button ────────────────────────────────────────────────────────────
     run_col, clear_col = st.columns([2, 1])
     with run_col:
         run_btn = st.button(
-            "▶  Run N-simulation Forecast",
+            f"▶  Run {n_sim}-simulation Forecast",
             type="primary",
             use_container_width=True,
         )
     with clear_col:
         if st.button("✕  Clear results", use_container_width=True):
-            for k in ["fc_results", "fc_temps", "fc_reasonings", "fc_series", "fc_country_done",
-                      "fc_model_done", "fc_type_done", "fc_next_date", "fc_errors"]:
+            for k in [
+                "fc_results", "fc_temps", "fc_reasonings", "fc_series",
+                "fc_country_done", "fc_model_done", "fc_type_done",
+                "fc_next_date", "fc_errors", "fc_n_sim_done",
+            ]:
                 st.session_state.pop(k, None)
             st.rerun()
 
-    # ── Run simulations ───────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────
+    # SIMULATION LOOP — keeps going until n_sim VALID results are collected
+    # max attempts = n_sim * MAX_ATTEMPTS_PER_SLOT  (safety cap)
+    # ─────────────────────────────────────────────────────────────────────────
     if run_btn:
-        # Fetch series
         with st.spinner(f"Fetching {fc_measure} data…"):
             try:
                 series_df = fetch_inflation_data(fc_country)
@@ -1158,57 +1044,103 @@ with tab_forecast:
                 st.error(f"Failed to fetch inflation data: {e}")
                 st.stop()
 
-        # Build Reddit context if conditional
         context_text = None
         if fc_type == "Conditional on Reddit":
             context_text = build_context_block(fc_subs, only_inflation=True, max_threads=20)
             if context_text.startswith("(No conversation"):
                 context_text = None
 
-        # Run 30 simulations
         results, temps, errors, reasonings = [], [], [], []
-        next_date_result = None
-        progress_bar = st.progress(0, text="Starting simulations…")
-        status_slot   = st.empty()
-        n_sim = 60
-        for i in range(n_sim):
+        next_date_result   = None
+        MAX_ATTEMPTS_PER_SLOT = 5
+        attempts_total        = 0
+        max_total_attempts    = int(n_sim) * MAX_ATTEMPTS_PER_SLOT
+
+        progress_bar = st.progress(0.0, text="Starting…")
+        status_slot  = st.empty()
+
+        while len(results) < int(n_sim) and attempts_total < max_total_attempts:
+            attempts_total += 1
+            slot = len(results)          # which valid result we are aiming for (0-based)
             temp = random.uniform(0.1, 0.9)
+
             try:
-                val, next_date_result, reasoning = run_single_forecast(
+                val, next_date_result, reasoning, raw = run_single_forecast(
                     client_fc, fc_model_key, series_df,
                     fc_country, fc_measure, temp, context_text,
-                    run_index=i,
+                    run_index=slot,
                 )
+
                 if val is not None:
                     results.append(val)
                     temps.append(temp)
                     reasonings.append(reasoning)
                     status_slot.markdown(
                         f"<span style='font-size:0.82rem;color:#8892b0;'>"
-                        f"Run {i+1}/{n_sim} &nbsp;·&nbsp; temp={temp:.2f} "
-                        f"&nbsp;·&nbsp; forecast: <strong style='color:#e8eaf0;'>{val:.2f}%</strong></span>",
+                        f"✓ <b style='color:#e8eaf0;'>{slot + 1}/{n_sim}</b>"
+                        f" &nbsp;·&nbsp; temp={temp:.2f}"
+                        f" &nbsp;·&nbsp; forecast: <strong style='color:#e8eaf0;'>{val:.2f}%</strong>"
+                        f" &nbsp;·&nbsp; attempt {attempts_total}</span>",
                         unsafe_allow_html=True,
                     )
                 else:
-                    errors.append(f"Run {i+1}: could not parse number from model output")
+                    # Parse failed — log and retry this slot
+                    errors.append(
+                        f"Attempt {attempts_total} (slot {slot + 1}): "
+                        f"parse failed — raw response: {raw[:150]!r}"
+                    )
+                    status_slot.markdown(
+                        f"<span style='font-size:0.82rem;color:#f87171;'>"
+                        f"✗ Slot {slot + 1} parse failed — retrying "
+                        f"(attempt {attempts_total})</span>",
+                        unsafe_allow_html=True,
+                    )
+
             except Exception as exc:
-                errors.append(f"Run {i+1}: {repr(exc)}")
-            progress_bar.progress((i + 1) / n_sim, text=f"Simulation {i+1} / {n_sim}")
-            _time.sleep(3)
+                err_msg = repr(exc)
+                errors.append(
+                    f"Attempt {attempts_total} (slot {slot + 1}): {err_msg}"
+                )
+                status_slot.markdown(
+                    f"<span style='font-size:0.82rem;color:#f87171;'>"
+                    f"✗ Slot {slot + 1} exception — retrying "
+                    f"({err_msg[:80]})</span>",
+                    unsafe_allow_html=True,
+                )
+                # Back off on rate-limit and transient errors
+                if _is_rate_limit_error(exc):
+                    _time.sleep(12)
+                elif _is_transient_error(exc):
+                    _time.sleep(6)
+
+            # Progress tracks valid results collected
+            progress_bar.progress(
+                min(len(results) / int(n_sim), 1.0),
+                text=f"Valid: {len(results)}/{n_sim}  ·  Attempts: {attempts_total}",
+            )
+            _time.sleep(2)      # polite pause between every attempt
 
         progress_bar.empty()
         status_slot.empty()
 
+        if len(results) < int(n_sim):
+            st.warning(
+                f"Collected only {len(results)}/{n_sim} valid results after "
+                f"{attempts_total} attempts. "
+                "The model may have hit a rate-limit ceiling — results shown below are partial."
+            )
+
         # Persist to session state
-        st.session_state.fc_results    = results
-        st.session_state.fc_temps      = temps
-        st.session_state.fc_reasonings = reasonings
-        st.session_state.fc_series     = series_df
+        st.session_state.fc_results      = results
+        st.session_state.fc_temps        = temps
+        st.session_state.fc_reasonings   = reasonings
+        st.session_state.fc_series       = series_df
         st.session_state.fc_country_done = fc_country
         st.session_state.fc_model_done   = fc_model_key
-        st.session_state.fc_type_done  = fc_type
-        st.session_state.fc_next_date  = next_date_result
-        st.session_state.fc_errors     = errors
+        st.session_state.fc_type_done    = fc_type
+        st.session_state.fc_next_date    = next_date_result
+        st.session_state.fc_errors       = errors
+        st.session_state.fc_n_sim_done   = int(n_sim)
         st.rerun()
 
     # ── Display results ────────────────────────────────────────────────────────
@@ -1222,24 +1154,24 @@ with tab_forecast:
         done_model   = st.session_state.fc_model_done
         done_type    = st.session_state.fc_type_done
         errors_fc    = st.session_state.get("fc_errors", [])
+        n_sim_done   = st.session_state.get("fc_n_sim_done", len(results))
 
         done_meta  = FORECAST_COUNTRIES[done_country]
         done_color = done_meta["color"]
 
         if not results:
-            st.warning(f"All {n_sim} simulations failed to parse a valid number. See errors below.")
+            st.warning("All simulation attempts failed. Expand the error log below.")
         else:
-            mean_fc              = float(np.mean(results))
-            median_fc            = float(np.median(results))
-            std_fc               = float(np.std(results))
-            p5, p25, p75, p95   = (float(x) for x in np.percentile(results, [5, 25, 75, 95]))
-            last_actual          = float(series_df.iloc[-1]["inflation"])
-            last_date_str        = series_df.iloc[-1]["date"].strftime("%B %Y")
-            next_month_label     = next_date.strftime("%B %Y")
+            mean_fc            = float(np.mean(results))
+            median_fc          = float(np.median(results))
+            std_fc             = float(np.std(results))
+            p5, p25, p75, p95  = (float(x) for x in np.percentile(results, [5, 25, 75, 95]))
+            last_actual        = float(series_df.iloc[-1]["inflation"])
+            last_date_str      = series_df.iloc[-1]["date"].strftime("%B %Y")
+            next_month_label   = next_date.strftime("%B %Y")
 
-            # ── Summary metrics ──────────────────────────────────────────────
             m1, m2, m3, m4, m5 = st.columns(5)
-            m1.metric("Last actual",     f"{last_actual:.2f}%",  delta=None, help=last_date_str)
+            m1.metric("Last actual",     f"{last_actual:.2f}%", help=last_date_str)
             m2.metric("Forecast mean",   f"{mean_fc:.2f}%",
                       delta=f"{mean_fc - last_actual:+.2f}pp", help=next_month_label)
             m3.metric("Forecast median", f"{median_fc:.2f}%")
@@ -1248,110 +1180,71 @@ with tab_forecast:
 
             st.markdown("")
 
-            # ── Chart ────────────────────────────────────────────────────────
             hist_display = series_df.tail(36).copy()
-
-            # Jitter the n_sim simulation points a tiny bit on x so they're visible
-            rng = np.random.default_rng(42)
+            rng      = np.random.default_rng(42)
             x_jitter = [
                 next_date + pd.Timedelta(hours=float(rng.uniform(-60, 60)))
                 for _ in results
             ]
 
-            rgb_hex   = done_color.lstrip("#")
-            r, g, b   = int(rgb_hex[0:2], 16), int(rgb_hex[2:4], 16), int(rgb_hex[4:6], 16)
-            rgba_dim  = f"rgba({r},{g},{b},0.25)"
-            rgba_mid  = f"rgba({r},{g},{b},0.55)"
-            rgba_full = f"rgba({r},{g},{b},1.0)"
+            rgb_hex  = done_color.lstrip("#")
+            r, g, b  = int(rgb_hex[0:2], 16), int(rgb_hex[2:4], 16), int(rgb_hex[4:6], 16)
+            rgba_dim = f"rgba({r},{g},{b},0.25)"
+            rgba_mid = f"rgba({r},{g},{b},0.55)"
 
             fig_fc = go.Figure()
-
-            # Historical line
             fig_fc.add_trace(go.Scatter(
-                x=hist_display["date"],
-                y=hist_display["inflation"],
-                mode="lines",
-                name="Historical",
+                x=hist_display["date"], y=hist_display["inflation"],
+                mode="lines", name="Historical",
                 line=dict(color=done_color, width=2.5),
                 hovertemplate="%{x|%b %Y}: <b>%{y:.2f}%</b><extra></extra>",
             ))
-
-            # Dotted bridge from last actual → mean forecast
             fig_fc.add_trace(go.Scatter(
                 x=[hist_display.iloc[-1]["date"], next_date],
                 y=[last_actual, mean_fc],
                 mode="lines",
                 line=dict(color=done_color, width=1.5, dash="dot"),
-                showlegend=False,
-                hoverinfo="skip",
+                showlegend=False, hoverinfo="skip",
             ))
-
-            # Individual simulation dots (jittered)
             fig_fc.add_trace(go.Scatter(
-                x=x_jitter,
-                y=results,
-                mode="markers",
-                name=f"{n_sim} simulations",
+                x=x_jitter, y=results, mode="markers",
+                name=f"{len(results)} simulations",
                 marker=dict(color=done_color, size=6, opacity=0.35,
                             line=dict(color="white", width=0.5)),
                 hovertemplate="Sim: <b>%{y:.2f}%</b><extra></extra>",
             ))
-
-            # 90 % CI — thin bar
             fig_fc.add_trace(go.Scatter(
-                x=[next_date], y=[mean_fc],
-                mode="markers",
+                x=[next_date], y=[mean_fc], mode="markers",
                 marker=dict(size=1, color=rgba_dim),
-                error_y=dict(
-                    type="data", symmetric=False,
-                    array=[p95 - mean_fc],
-                    arrayminus=[mean_fc - p5],
-                    color=rgba_dim,
-                    thickness=3, width=14,
-                ),
-                name="90 % CI",
-                hoverinfo="skip",
+                error_y=dict(type="data", symmetric=False,
+                             array=[p95 - mean_fc], arrayminus=[mean_fc - p5],
+                             color=rgba_dim, thickness=3, width=14),
+                name="90 % CI", hoverinfo="skip",
             ))
-
-            # 50 % CI — thick bar
             fig_fc.add_trace(go.Scatter(
-                x=[next_date], y=[mean_fc],
-                mode="markers",
+                x=[next_date], y=[mean_fc], mode="markers",
                 marker=dict(size=1, color=rgba_mid),
-                error_y=dict(
-                    type="data", symmetric=False,
-                    array=[p75 - mean_fc],
-                    arrayminus=[mean_fc - p25],
-                    color=rgba_mid,
-                    thickness=8, width=10,
-                ),
-                name="50 % CI",
-                hoverinfo="skip",
+                error_y=dict(type="data", symmetric=False,
+                             array=[p75 - mean_fc], arrayminus=[mean_fc - p25],
+                             color=rgba_mid, thickness=8, width=10),
+                name="50 % CI", hoverinfo="skip",
             ))
-
-            # Mean star marker
             fig_fc.add_trace(go.Scatter(
-                x=[next_date], y=[mean_fc],
-                mode="markers",
-                name=f"Mean forecast: {mean_fc:.2f}%",
-                marker=dict(
-                    color="#ffffff", size=16, symbol="star",
-                    line=dict(color=done_color, width=2.5),
-                ),
+                x=[next_date], y=[mean_fc], mode="markers",
+                name=f"Mean: {mean_fc:.2f}%",
+                marker=dict(color="#ffffff", size=16, symbol="star",
+                            line=dict(color=done_color, width=2.5)),
                 hovertemplate=f"Forecast mean: <b>{mean_fc:.2f}%</b><extra></extra>",
             ))
-
-            # Shade background for forecast column
             fig_fc.add_vrect(
-                x0=hist_display.iloc[-1]["date"], x1=next_date + pd.Timedelta(days=15),
-                fillcolor="rgba(255,255,255,0.03)",
-                layer="below", line_width=0,
+                x0=hist_display.iloc[-1]["date"],
+                x1=next_date + pd.Timedelta(days=15),
+                fillcolor="rgba(255,255,255,0.03)", layer="below", line_width=0,
             )
             fig_fc.add_vline(
                 x=next_date,
                 line=dict(color="rgba(255,255,255,0.15)", width=1, dash="dash"),
             )
-
             fig_fc.update_layout(
                 template="plotly_dark",
                 paper_bgcolor="rgba(0,0,0,0)",
@@ -1361,10 +1254,10 @@ with tab_forecast:
                     text=(
                         f"{done_meta['measure']} — {done_model} "
                         f"({'Conditional' if 'Conditional' in done_type else 'Unconditional'}) "
-                        f"· Forecast for {next_month_label}"
+                        f"· Forecast for {next_month_label} "
+                        f"({len(results)}/{n_sim_done} valid)"
                     ),
-                    font=dict(size=13, color="#e8eaf0"),
-                    x=0,
+                    font=dict(size=13, color="#e8eaf0"), x=0,
                 ),
                 xaxis=dict(
                     title="", gridcolor="rgba(255,255,255,0.04)",
@@ -1373,24 +1266,23 @@ with tab_forecast:
                 yaxis=dict(
                     title="Inflation (YoY %)",
                     gridcolor="rgba(255,255,255,0.06)",
-                    tickcolor="#3a3f55", linecolor="#1e2130",
-                    ticksuffix="%",
+                    tickcolor="#3a3f55", linecolor="#1e2130", ticksuffix="%",
                 ),
-                legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02,
-                    xanchor="right", x=1, font=dict(size=11),
-                ),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                            xanchor="right", x=1, font=dict(size=11)),
                 margin=dict(l=60, r=20, t=60, b=50),
                 height=420,
             )
             st.plotly_chart(fig_fc, use_container_width=True)
 
-            # ── Download CSV ──────────────────────────────────────────────────
-            today_str = _dt.date.today().strftime("%Y%m%d")
+            # ── CSV download ─────────────────────────────────────────────────
+            today_str    = _dt.date.today().strftime("%Y%m%d")
             safe_country = done_country.lower().replace(" ", "_")
-            safe_model   = done_model_key = done_model.replace("/", "-").replace(" ", "_").lower()
+            safe_model   = done_model.replace("/", "-").replace(" ", "_").lower()
             safe_type    = "conditional" if "Conditional" in done_type else "unconditional"
-            csv_filename = f"forecast_{safe_country}_{safe_model}_{safe_type}_{today_str}.csv"
+            csv_filename = (
+                f"forecast_{safe_country}_{safe_model}_{safe_type}_{today_str}.csv"
+            )
 
             fc_df = pd.DataFrame({
                 "run":            range(1, len(results) + 1),
@@ -1417,17 +1309,16 @@ with tab_forecast:
             with stat_col:
                 st.markdown(
                     f"<div style='font-size:0.80rem;color:#8892b0;padding-top:10px;'>"
-                    f"<b style='color:#c8cdd8;'>{len(results)}</b> valid simulations  ·  "
-                    f"<b style='color:#c8cdd8;'>{len(errors_fc)}</b> failed  ·  "
+                    f"<b style='color:#c8cdd8;'>{len(results)}</b> valid  ·  "
+                    f"<b style='color:#c8cdd8;'>{len(errors_fc)}</b> failed attempts  ·  "
                     f"Model: <b style='color:#c8cdd8;'>{done_model}</b>  ·  "
-                    f"Filename: <code style='font-size:0.76rem;'>{csv_filename}</code>"
+                    f"<code style='font-size:0.76rem;'>{csv_filename}</code>"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
 
-        # Show errors if any
         if errors_fc:
-            with st.expander(f"⚠️ {len(errors_fc)} simulation error(s)", expanded=False):
+            with st.expander(f"⚠️ {len(errors_fc)} failed attempt(s) — click to inspect", expanded=False):
                 for err in errors_fc:
                     st.code(err, language=None)
 
