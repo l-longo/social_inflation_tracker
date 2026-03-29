@@ -478,7 +478,7 @@ def run_single_forecast(
         f"Assume that you are in {current_month_str}. "
         f"Please give me your best forecast of year-over-year {measure} inflation "
         f"in {country_name} for the current month. Make your forecast considering the current economic environment and "
-        "use all the information you have (like access to the news).\n\n"
+        "use all the information you have (i.e. access to news).\n\n"
         f"Here is the historical series to inform your forecast "
         f"(last 36 months of available data, last observation: "
         f"{last_date.strftime('%B %Y')} = {last_value:.2f}%):\n\n"
@@ -1194,7 +1194,7 @@ with tab_forecast:
             except Exception as exc:
                 errors.append(f"Run {i+1}: {repr(exc)}")
             progress_bar.progress((i + 1) / 30, text=f"Simulation {i+1} / 30")
-            _time.sleep(0.2)
+            _time.sleep(1.5)
 
         progress_bar.empty()
         status_slot.empty()
