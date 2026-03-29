@@ -1171,7 +1171,7 @@ with tab_forecast:
         progress_bar = st.progress(0, text="Starting simulations…")
         status_slot   = st.empty()
 
-        for i in range(30):
+        for i in range(60):
             temp = random.uniform(0.1, 0.9)
             try:
                 val, next_date_result, reasoning = run_single_forecast(
