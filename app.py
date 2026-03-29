@@ -433,6 +433,7 @@ def _next_month_date(last_date: pd.Timestamp) -> pd.Timestamp:
     return pd.Timestamp(year=last_date.year, month=last_date.month + 1, day=1)
 
 
+
 def run_single_forecast(
     client,
     model_key: str,
@@ -441,8 +442,14 @@ def run_single_forecast(
     measure: str,
     temperature: float,
     context_text: str | None = None,
+    run_index: int = 0,
 ) -> tuple:
-    """Send one prompt to the LLM and parse a numeric inflation forecast."""
+    """
+    Send one chain-of-thought prompt to the LLM.
+    Returns (forecast_value, next_date, reasoning_text).
+    The prompt is identical across all 30 runs; temperature variation
+    drives distributional spread through the chain-of-thought reasoning.
+    """
     last_n = series_df.tail(36)
     series_text = "\n".join(
         f"  {row['date'].strftime('%Y-%m')}: {row['inflation']:.2f}%"
@@ -454,36 +461,57 @@ def run_single_forecast(
     next_date = _next_month_date(last_date)
     next_month_str = next_date.strftime("%B %Y")
 
-    prompt = (
-        f"You are an economic forecaster. Below is the monthly {measure} inflation rate "
-        f"(year-on-year % change) for {country_name}. "
-        f"The last available data point is {last_date.strftime('%B %Y')} "
-        f"with a value of {last_value:.2f}%.\n\n"
+    system_msg = (
+        "You are a senior macroeconomic forecaster. "
+        "When asked for an inflation forecast you must:\n"
+        "1. Briefly reason about recent trend, base effects, and any relevant macro context "
+        "(3–5 sentences).\n"
+        "2. End your response with exactly one line in the format:\n"
+        "   FORECAST: <number>\n"
+        "where <number> is the year-on-year % inflation rate rounded to one decimal "
+        "(e.g. FORECAST: 2.4). Do not add any text after that line."
+    )
+
+    user_msg = (
+        f"Here is the monthly {measure} inflation rate (YoY %) for {country_name}.\n"
+        f"Last available observation: {last_date.strftime('%B %Y')} = {last_value:.2f}%\n\n"
         f"Historical series (last 36 months):\n{series_text}\n\n"
     )
     if context_text:
-        prompt += (
-            "Additionally, here are recent Reddit discussions about inflation that may "
-            "provide qualitative colour about current conditions:\n\n"
-            f"{context_text[:4000]}\n\n"
+        user_msg += (
+            "Recent Reddit discussions about inflation in this country/region "
+            "(last 24 h):\n\n"
+            f"{context_text[:3500]}\n\n"
         )
-    prompt += (
-        f"Based on this time-series and your macroeconomic knowledge, "
-        f"what will the {measure} inflation rate (year-on-year %) be for {next_month_str}?\n\n"
-        "Reply with ONLY a single decimal number (e.g. 2.4). "
-        "No text, no explanation, no units — just the number."
+    user_msg += (
+        f"Forecast the {measure} inflation rate (YoY %) for {next_month_str}. "
+        "Reason briefly, then write your final answer as:\n"
+        "FORECAST: <number>"
     )
 
     response = client.chat.completions.create(
         model=model_key,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user",   "content": user_msg},
+        ],
         temperature=temperature,
-        max_tokens=16,
-        timeout=45,
+        max_tokens=300,
+        timeout=60,
     )
     raw = response.choices[0].message.content.strip()
-    match = re.search(r"-?\d+\.?\d*", raw)
-    return (float(match.group()) if match else None), next_date
+
+    # Extract FORECAST: <number>; fall back to last number in text
+    fc_match = re.search(r"FORECAST\s*:\s*(-?\d+\.?\d*)", raw, re.IGNORECASE)
+    if fc_match:
+        value = float(fc_match.group(1))
+        reasoning = raw[:raw.lower().rfind("forecast")].strip()
+    else:
+        nums = re.findall(r"-?\d+\.?\d*", raw)
+        value = float(nums[-1]) if nums else None
+        reasoning = raw
+
+    return value, next_date, reasoning
 
 
 # ─── REDDIT CONTEXT BUILDER ───────────────────────────────────────────────────
@@ -1109,7 +1137,7 @@ with tab_forecast:
         )
     with clear_col:
         if st.button("✕  Clear results", use_container_width=True):
-            for k in ["fc_results", "fc_temps", "fc_series", "fc_country_done",
+            for k in ["fc_results", "fc_temps", "fc_reasonings", "fc_series", "fc_country_done",
                       "fc_model_done", "fc_type_done", "fc_next_date", "fc_errors"]:
                 st.session_state.pop(k, None)
             st.rerun()
@@ -1132,7 +1160,7 @@ with tab_forecast:
                 context_text = None
 
         # Run 30 simulations
-        results, temps, errors = [], [], []
+        results, temps, errors, reasonings = [], [], [], []
         next_date_result = None
         progress_bar = st.progress(0, text="Starting simulations…")
         status_slot   = st.empty()
@@ -1140,13 +1168,15 @@ with tab_forecast:
         for i in range(30):
             temp = random.uniform(0.3, 0.8)
             try:
-                val, next_date_result = run_single_forecast(
+                val, next_date_result, reasoning = run_single_forecast(
                     client_fc, fc_model_key, series_df,
                     fc_country, fc_measure, temp, context_text,
+                    run_index=i,
                 )
                 if val is not None:
                     results.append(val)
                     temps.append(temp)
+                    reasonings.append(reasoning)
                     status_slot.markdown(
                         f"<span style='font-size:0.82rem;color:#8892b0;'>"
                         f"Run {i+1}/30 &nbsp;·&nbsp; temp={temp:.2f} "
@@ -1158,6 +1188,7 @@ with tab_forecast:
             except Exception as exc:
                 errors.append(f"Run {i+1}: {repr(exc)}")
             progress_bar.progress((i + 1) / 30, text=f"Simulation {i+1} / 30")
+            _time.sleep(1.5)
 
         progress_bar.empty()
         status_slot.empty()
@@ -1165,6 +1196,7 @@ with tab_forecast:
         # Persist to session state
         st.session_state.fc_results    = results
         st.session_state.fc_temps      = temps
+        st.session_state.fc_reasonings = reasonings
         st.session_state.fc_series     = series_df
         st.session_state.fc_country_done = fc_country
         st.session_state.fc_model_done   = fc_model_key
@@ -1177,6 +1209,7 @@ with tab_forecast:
     if st.session_state.get("fc_results"):
         results      = st.session_state.fc_results
         temps        = st.session_state.fc_temps
+        reasonings   = st.session_state.get("fc_reasonings", [""] * len(results))
         series_df    = st.session_state.fc_series
         next_date    = st.session_state.fc_next_date
         done_country = st.session_state.fc_country_done
@@ -1357,6 +1390,7 @@ with tab_forecast:
                 "run":            range(1, len(results) + 1),
                 "temperature":    [round(t, 4) for t in temps],
                 "forecast_pct":   [round(v, 4) for v in results],
+                "reasoning":      reasonings,
                 "country":        done_country,
                 "measure":        done_meta["measure"],
                 "model":          done_model,
