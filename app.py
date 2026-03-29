@@ -365,7 +365,7 @@ def run_single_forecast(
     Returns (value, next_date, reasoning, raw_response).
     value is None if parsing failed.
     """
-    last_n = series_df.tail(36)
+    last_n = series_df  # full history
     series_text = "\n".join(
         f"  {row['date'].strftime('%Y-%m')}: {row['inflation']:.2f}%"
         for _, row in last_n.iterrows()
@@ -392,8 +392,8 @@ def run_single_forecast(
         f"Please give me your best forecast of year-over-year {measure} inflation "
         f"in {country_name} for the current month. Make your forecast considering the current "
         "economic environment and use all the information you have (i.e. access to news).\n\n"
-        f"Here is the historical series to inform your forecast "
-        f"(last 36 months of available data, last observation: "
+        f"Here is the full historical series to inform your forecast "
+        f"(all available data, last observation: "
         f"{last_date.strftime('%B %Y')} = {last_value:.2f}%):\n\n"
         f"{series_text}\n\n"
     )
@@ -415,7 +415,11 @@ def run_single_forecast(
         max_tokens=300,
         timeout=60,
     )
-    raw = response.choices[0].message.content.strip()
+    raw = (response.choices[0].message.content or "").strip()
+
+    if not raw:
+        finish_reason = getattr(response.choices[0], "finish_reason", "unknown")
+        raise ValueError(f"Model returned empty content (finish_reason={finish_reason!r})")
 
     fc_match = re.search(r"FORECAST\s*:\s*(-?\d+\.?\d*)", raw, re.IGNORECASE)
     if fc_match:
