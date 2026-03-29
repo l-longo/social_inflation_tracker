@@ -329,11 +329,6 @@ FORECAST_COUNTRIES = {
     },
 }
 
-FORECAST_LLM_MODELS = {
-    "gpt-4o": "GPT-4o",
-    **LLM_MODELS,
-}
-
 KEYWORDS_TRACKED = [
     "inflation", "hyperinflation", "disinflation",
     "deflation", "price", "prices",
@@ -344,6 +339,11 @@ LLM_MODELS = {
     "llama-3.3-70b-instruct": "Llama 3.3 70B Instruct",
     "minimax-m2":                "MiniMax M2",
     "mistral-small-3.2-24b":     "Mistral Small 3.2 24B",
+}
+
+FORECAST_LLM_MODELS = {
+    "gpt-4o": "GPT-4o",
+    **LLM_MODELS,
 }
 
 LLM_BASE_URL = "https://api-gpt.jrc.ec.europa.eu/v1"
