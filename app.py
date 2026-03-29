@@ -1137,7 +1137,7 @@ with tab_forecast:
     run_col, clear_col = st.columns([2, 1])
     with run_col:
         run_btn = st.button(
-            "▶  Run 30-simulation Forecast",
+            "▶  Run N-simulation Forecast",
             type="primary",
             use_container_width=True,
         )
