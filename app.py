@@ -8,8 +8,15 @@ Tab 2: AI chatbot grounded in Reddit conversation data
 import html as html_module
 import pathlib
 import re
+import random
+import time as _time
+import datetime as _dt
+from io import StringIO
+
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import requests
 import streamlit as st
 from openai import OpenAI
 
@@ -271,6 +278,62 @@ SUBREDDITS_EU = {
 
 ALL_SUBREDDITS = {**SUBREDDITS_US, **SUBREDDITS_EU}
 
+FORECAST_COUNTRIES = {
+    "United States": {
+        "label": "United States (CPI)",
+        "source": "fred",
+        "code": None,
+        "measure": "US CPI",
+        "reddit_subs": ["economy", "economics"],
+        "color": "#4f8ef7",
+    },
+    "Euro Area": {
+        "label": "Euro Area (HICP)",
+        "source": "ecb",
+        "code": "U2",
+        "measure": "Euro Area HICP",
+        "reddit_subs": ["europe", "economics"],
+        "color": "#a78bfa",
+    },
+    "Italy": {
+        "label": "Italy (HICP)",
+        "source": "ecb",
+        "code": "IT",
+        "measure": "Italian HICP",
+        "reddit_subs": ["europe", "italy"],
+        "color": "#fb7185",
+    },
+    "Germany": {
+        "label": "Germany (HICP)",
+        "source": "ecb",
+        "code": "DE",
+        "measure": "German HICP",
+        "reddit_subs": ["europe", "germany"],
+        "color": "#34d399",
+    },
+    "France": {
+        "label": "France (HICP)",
+        "source": "ecb",
+        "code": "FR",
+        "measure": "French HICP",
+        "reddit_subs": ["europe", "france"],
+        "color": "#f97316",
+    },
+    "Spain": {
+        "label": "Spain (HICP)",
+        "source": "ecb",
+        "code": "ES",
+        "measure": "Spanish HICP",
+        "reddit_subs": ["europe", "spain"],
+        "color": "#fbbf24",
+    },
+}
+
+FORECAST_LLM_MODELS = {
+    "gpt-4o": "GPT-4o",
+    **LLM_MODELS,
+}
+
 KEYWORDS_TRACKED = [
     "inflation", "hyperinflation", "disinflation",
     "deflation", "price", "prices",
@@ -320,6 +383,103 @@ def load_conversations(subreddit: str) -> pd.DataFrame:
     return df
 
 
+# ─── INFLATION DATA FETCHERS ──────────────────────────────────────────────────
+@st.cache_data(ttl=3600)
+def fetch_us_cpi() -> pd.DataFrame:
+    """Fetch US CPI from FRED and compute YoY % change."""
+    url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCSL"
+    resp = requests.get(url, timeout=60, headers={"User-Agent": "Mozilla/5.0"})
+    resp.raise_for_status()
+    df = pd.read_csv(StringIO(resp.text))
+    df["date"] = pd.to_datetime(df["observation_date"])
+    df["value"] = pd.to_numeric(df["CPIAUCSL"], errors="coerce")
+    df = df.dropna(subset=["value"]).sort_values("date")
+    df["inflation"] = 100 * (df["value"] / df["value"].shift(12) - 1)
+    df = df.dropna(subset=["inflation"])
+    return df[["date", "inflation"]].reset_index(drop=True)
+
+
+@st.cache_data(ttl=3600)
+def fetch_hicp(country_code: str) -> pd.DataFrame:
+    """Fetch HICP annual rate from ECB API."""
+    series_key = "M.U2.N.000000.4D0.ANR" if country_code == "U2" else f"M.{country_code}.N.000000.4D0.ANR"
+    url = f"https://data-api.ecb.europa.eu/service/data/HICP/{series_key}"
+    resp = requests.get(url, params={"format": "csvdata"}, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+    resp.raise_for_status()
+    df = pd.read_csv(StringIO(resp.text))
+    df["date"] = pd.to_datetime(df["TIME_PERIOD"])
+    df["inflation"] = pd.to_numeric(df["OBS_VALUE"], errors="coerce")
+    df = df.dropna(subset=["inflation"])
+    return df[["date", "inflation"]].sort_values("date").reset_index(drop=True)
+
+
+def fetch_inflation_data(country_key: str) -> pd.DataFrame:
+    meta = FORECAST_COUNTRIES[country_key]
+    if meta["source"] == "fred":
+        return fetch_us_cpi()
+    return fetch_hicp(meta["code"])
+
+
+def _next_month_date(last_date: pd.Timestamp) -> pd.Timestamp:
+    if last_date.month == 12:
+        return pd.Timestamp(year=last_date.year + 1, month=1, day=1)
+    return pd.Timestamp(year=last_date.year, month=last_date.month + 1, day=1)
+
+
+def run_single_forecast(
+    client,
+    model_key: str,
+    series_df: pd.DataFrame,
+    country_name: str,
+    measure: str,
+    temperature: float,
+    context_text: str | None = None,
+) -> tuple:
+    """Send one prompt to the LLM and parse a numeric inflation forecast."""
+    last_n = series_df.tail(36)
+    series_text = "\n".join(
+        f"  {row['date'].strftime('%Y-%m')}: {row['inflation']:.2f}%"
+        for _, row in last_n.iterrows()
+    )
+    last_row = series_df.iloc[-1]
+    last_date: pd.Timestamp = last_row["date"]
+    last_value: float = float(last_row["inflation"])
+    next_date = _next_month_date(last_date)
+    next_month_str = next_date.strftime("%B %Y")
+
+    prompt = (
+        f"You are an economic forecaster. Below is the monthly {measure} inflation rate "
+        f"(year-on-year % change) for {country_name}. "
+        f"The last available data point is {last_date.strftime('%B %Y')} "
+        f"with a value of {last_value:.2f}%.\n\n"
+        f"Historical series (last 36 months):\n{series_text}\n\n"
+    )
+    if context_text:
+        prompt += (
+            "Additionally, here are recent Reddit discussions about inflation that may "
+            "provide qualitative colour about current conditions:\n\n"
+            f"{context_text[:4000]}\n\n"
+        )
+    prompt += (
+        f"Based on this time-series and your macroeconomic knowledge, "
+        f"what will the {measure} inflation rate (year-on-year %) be for {next_month_str}?\n\n"
+        "Reply with ONLY a single decimal number (e.g. 2.4). "
+        "No text, no explanation, no units — just the number."
+    )
+
+    response = client.chat.completions.create(
+        model=model_key,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=temperature,
+        max_tokens=16,
+        timeout=45,
+    )
+    raw = response.choices[0].message.content.strip()
+    match = re.search(r"-?\d+\.?\d*", raw)
+    return (float(match.group()) if match else None), next_date
+
+
+# ─── REDDIT CONTEXT BUILDER ───────────────────────────────────────────────────
 def build_context_block(subs: list, only_inflation: bool = True, max_threads: int = MAX_CONTEXT_THREADS) -> str:
     parts = []
     for sub in subs:
@@ -522,7 +682,7 @@ with st.sidebar:
 
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
-tab_dashboard, tab_chat = st.tabs(["Dashboard", "Conversational Analysis"])
+tab_dashboard, tab_chat, tab_forecast = st.tabs(["Dashboard", "Conversational Analysis", "⚡ Real-time Forecast"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -548,7 +708,6 @@ with tab_dashboard:
     all_dates = pd.concat(non_empty, ignore_index=True)
     date_min, date_max = all_dates.min().date(), all_dates.max().date()
 
-    import datetime as _dt
     # Default view starts at March 2026; slider allows going back to January if needed
     _march = _dt.date(2026, 3, 1)
     default_start = max(date_min, _march)
@@ -785,7 +944,6 @@ with tab_chat:
             return msgs
 
         with st.spinner("Analysing…"):
-            import time as _time
 
             reply = None
             last_error: str = ""
@@ -871,6 +1029,360 @@ with tab_chat:
         if last_err:
             with st.expander("⚠️ Last API error (debug)", expanded=False):
                 st.code(last_err, language=None)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — REAL-TIME FORECAST
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_forecast:
+    st.markdown("# Real-time Inflation Forecast")
+    st.markdown(
+        "Select a country, a language model, and a forecast type. "
+        "The tracker will run **30 independent simulations** at randomly varied temperatures "
+        "(0.3 – 0.8) and display the forecast distribution with confidence bands. "
+        "Conditional forecasts additionally ground the LLM with recent Reddit conversations."
+    )
+
+    client_fc = get_llm_client()
+    if client_fc is None:
+        st.error(
+            "JRC_TOKEN is not configured. "
+            "Add your JWT token under Streamlit Cloud → Settings → Secrets."
+        )
+        st.stop()
+
+    # ── Config row ────────────────────────────────────────────────────────────
+    fc_c1, fc_c2, fc_c3 = st.columns([1, 1, 1])
+
+    with fc_c1:
+        fc_country = st.selectbox(
+            "Country / region",
+            options=list(FORECAST_COUNTRIES.keys()),
+            format_func=lambda k: FORECAST_COUNTRIES[k]["label"],
+        )
+
+    with fc_c2:
+        fc_model_key = st.selectbox(
+            "Language model",
+            options=list(FORECAST_LLM_MODELS.keys()),
+            format_func=lambda k: FORECAST_LLM_MODELS[k],
+            key="fc_model",
+        )
+
+    with fc_c3:
+        fc_type = st.radio(
+            "Forecast type",
+            options=["Unconditional", "Conditional on Reddit"],
+            index=0,
+            key="fc_type",
+        )
+
+    fc_meta   = FORECAST_COUNTRIES[fc_country]
+    fc_color  = fc_meta["color"]
+    fc_subs   = fc_meta["reddit_subs"]
+    fc_measure = fc_meta["measure"]
+
+    # Context info
+    if fc_type == "Conditional on Reddit":
+        n_ctx = sum(len(load_conversations(s)) for s in fc_subs)
+        st.caption(
+            f"Conditional context: {', '.join('r/'+s for s in fc_subs)}  ·  "
+            f"{n_ctx} threads available"
+        )
+
+    st.markdown("---")
+
+    # ── Run button ────────────────────────────────────────────────────────────
+    run_col, clear_col = st.columns([2, 1])
+    with run_col:
+        run_btn = st.button(
+            "▶  Run 30-simulation Forecast",
+            type="primary",
+            use_container_width=True,
+        )
+    with clear_col:
+        if st.button("✕  Clear results", use_container_width=True):
+            for k in ["fc_results", "fc_temps", "fc_series", "fc_country",
+                      "fc_model", "fc_type_done", "fc_next_date", "fc_errors"]:
+                st.session_state.pop(k, None)
+            st.rerun()
+
+    # ── Run simulations ───────────────────────────────────────────────────────
+    if run_btn:
+        # Fetch series
+        with st.spinner(f"Fetching {fc_measure} data…"):
+            try:
+                series_df = fetch_inflation_data(fc_country)
+            except Exception as e:
+                st.error(f"Failed to fetch inflation data: {e}")
+                st.stop()
+
+        # Build Reddit context if conditional
+        context_text = None
+        if fc_type == "Conditional on Reddit":
+            context_text = build_context_block(fc_subs, only_inflation=True, max_threads=20)
+            if context_text.startswith("(No conversation"):
+                context_text = None
+
+        # Run 30 simulations
+        results, temps, errors = [], [], []
+        next_date_result = None
+        progress_bar = st.progress(0, text="Starting simulations…")
+        status_slot   = st.empty()
+
+        for i in range(30):
+            temp = random.uniform(0.3, 0.8)
+            try:
+                val, next_date_result = run_single_forecast(
+                    client_fc, fc_model_key, series_df,
+                    fc_country, fc_measure, temp, context_text,
+                )
+                if val is not None:
+                    results.append(val)
+                    temps.append(temp)
+                    status_slot.markdown(
+                        f"<span style='font-size:0.82rem;color:#8892b0;'>"
+                        f"Run {i+1}/30 &nbsp;·&nbsp; temp={temp:.2f} "
+                        f"&nbsp;·&nbsp; forecast: <strong style='color:#e8eaf0;'>{val:.2f}%</strong></span>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    errors.append(f"Run {i+1}: could not parse number from model output")
+            except Exception as exc:
+                errors.append(f"Run {i+1}: {repr(exc)}")
+            progress_bar.progress((i + 1) / 30, text=f"Simulation {i+1} / 30")
+
+        progress_bar.empty()
+        status_slot.empty()
+
+        # Persist to session state
+        st.session_state.fc_results    = results
+        st.session_state.fc_temps      = temps
+        st.session_state.fc_series     = series_df
+        st.session_state.fc_country    = fc_country
+        st.session_state.fc_model      = fc_model_key
+        st.session_state.fc_type_done  = fc_type
+        st.session_state.fc_next_date  = next_date_result
+        st.session_state.fc_errors     = errors
+        st.rerun()
+
+    # ── Display results ────────────────────────────────────────────────────────
+    if st.session_state.get("fc_results"):
+        results      = st.session_state.fc_results
+        temps        = st.session_state.fc_temps
+        series_df    = st.session_state.fc_series
+        next_date    = st.session_state.fc_next_date
+        done_country = st.session_state.fc_country
+        done_model   = st.session_state.fc_model
+        done_type    = st.session_state.fc_type_done
+        errors_fc    = st.session_state.get("fc_errors", [])
+
+        done_meta  = FORECAST_COUNTRIES[done_country]
+        done_color = done_meta["color"]
+
+        if not results:
+            st.warning("All 30 simulations failed to parse a valid number. See errors below.")
+        else:
+            mean_fc              = float(np.mean(results))
+            median_fc            = float(np.median(results))
+            std_fc               = float(np.std(results))
+            p5, p25, p75, p95   = (float(x) for x in np.percentile(results, [5, 25, 75, 95]))
+            last_actual          = float(series_df.iloc[-1]["inflation"])
+            last_date_str        = series_df.iloc[-1]["date"].strftime("%B %Y")
+            next_month_label     = next_date.strftime("%B %Y")
+
+            # ── Summary metrics ──────────────────────────────────────────────
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("Last actual",     f"{last_actual:.2f}%",  delta=None, help=last_date_str)
+            m2.metric("Forecast mean",   f"{mean_fc:.2f}%",
+                      delta=f"{mean_fc - last_actual:+.2f}pp", help=next_month_label)
+            m3.metric("Forecast median", f"{median_fc:.2f}%")
+            m4.metric("Std dev",         f"{std_fc:.2f}pp")
+            m5.metric("90 % CI",         f"[{p5:.2f}, {p95:.2f}]")
+
+            st.markdown("")
+
+            # ── Chart ────────────────────────────────────────────────────────
+            hist_display = series_df.tail(36).copy()
+
+            # Jitter the 30 simulation points a tiny bit on x so they're visible
+            rng = np.random.default_rng(42)
+            x_jitter = [
+                next_date + pd.Timedelta(hours=float(rng.uniform(-60, 60)))
+                for _ in results
+            ]
+
+            rgb_hex   = done_color.lstrip("#")
+            r, g, b   = int(rgb_hex[0:2], 16), int(rgb_hex[2:4], 16), int(rgb_hex[4:6], 16)
+            rgba_dim  = f"rgba({r},{g},{b},0.25)"
+            rgba_mid  = f"rgba({r},{g},{b},0.55)"
+            rgba_full = f"rgba({r},{g},{b},1.0)"
+
+            fig_fc = go.Figure()
+
+            # Historical line
+            fig_fc.add_trace(go.Scatter(
+                x=hist_display["date"],
+                y=hist_display["inflation"],
+                mode="lines",
+                name="Historical",
+                line=dict(color=done_color, width=2.5),
+                hovertemplate="%{x|%b %Y}: <b>%{y:.2f}%</b><extra></extra>",
+            ))
+
+            # Dotted bridge from last actual → mean forecast
+            fig_fc.add_trace(go.Scatter(
+                x=[hist_display.iloc[-1]["date"], next_date],
+                y=[last_actual, mean_fc],
+                mode="lines",
+                line=dict(color=done_color, width=1.5, dash="dot"),
+                showlegend=False,
+                hoverinfo="skip",
+            ))
+
+            # Individual simulation dots (jittered)
+            fig_fc.add_trace(go.Scatter(
+                x=x_jitter,
+                y=results,
+                mode="markers",
+                name=f"30 simulations",
+                marker=dict(color=done_color, size=6, opacity=0.35,
+                            line=dict(color="white", width=0.5)),
+                hovertemplate="Sim: <b>%{y:.2f}%</b><extra></extra>",
+            ))
+
+            # 90 % CI — thin bar
+            fig_fc.add_trace(go.Scatter(
+                x=[next_date], y=[mean_fc],
+                mode="markers",
+                marker=dict(size=1, color=rgba_dim),
+                error_y=dict(
+                    type="data", symmetric=False,
+                    array=[p95 - mean_fc],
+                    arrayminus=[mean_fc - p5],
+                    color=rgba_dim,
+                    thickness=3, width=14,
+                ),
+                name="90 % CI",
+                hoverinfo="skip",
+            ))
+
+            # 50 % CI — thick bar
+            fig_fc.add_trace(go.Scatter(
+                x=[next_date], y=[mean_fc],
+                mode="markers",
+                marker=dict(size=1, color=rgba_mid),
+                error_y=dict(
+                    type="data", symmetric=False,
+                    array=[p75 - mean_fc],
+                    arrayminus=[mean_fc - p25],
+                    color=rgba_mid,
+                    thickness=8, width=10,
+                ),
+                name="50 % CI",
+                hoverinfo="skip",
+            ))
+
+            # Mean star marker
+            fig_fc.add_trace(go.Scatter(
+                x=[next_date], y=[mean_fc],
+                mode="markers",
+                name=f"Mean forecast: {mean_fc:.2f}%",
+                marker=dict(
+                    color="#ffffff", size=16, symbol="star",
+                    line=dict(color=done_color, width=2.5),
+                ),
+                hovertemplate=f"Forecast mean: <b>{mean_fc:.2f}%</b><extra></extra>",
+            ))
+
+            # Shade background for forecast column
+            fig_fc.add_vrect(
+                x0=hist_display.iloc[-1]["date"], x1=next_date + pd.Timedelta(days=15),
+                fillcolor="rgba(255,255,255,0.03)",
+                layer="below", line_width=0,
+            )
+            fig_fc.add_vline(
+                x=next_date,
+                line=dict(color="rgba(255,255,255,0.15)", width=1, dash="dash"),
+            )
+
+            fig_fc.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(family="Inter", color="#c8cdd8", size=12),
+                title=dict(
+                    text=(
+                        f"{done_meta['measure']} — {done_model} "
+                        f"({'Conditional' if 'Conditional' in done_type else 'Unconditional'}) "
+                        f"· Forecast for {next_month_label}"
+                    ),
+                    font=dict(size=13, color="#e8eaf0"),
+                    x=0,
+                ),
+                xaxis=dict(
+                    title="", gridcolor="rgba(255,255,255,0.04)",
+                    tickformat="%b %Y", tickcolor="#3a3f55", linecolor="#1e2130",
+                ),
+                yaxis=dict(
+                    title="Inflation (YoY %)",
+                    gridcolor="rgba(255,255,255,0.06)",
+                    tickcolor="#3a3f55", linecolor="#1e2130",
+                    ticksuffix="%",
+                ),
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="right", x=1, font=dict(size=11),
+                ),
+                margin=dict(l=60, r=20, t=60, b=50),
+                height=420,
+            )
+            st.plotly_chart(fig_fc, use_container_width=True)
+
+            # ── Download CSV ──────────────────────────────────────────────────
+            today_str = _dt.date.today().strftime("%Y%m%d")
+            safe_country = done_country.lower().replace(" ", "_")
+            safe_model   = done_model_key = done_model.replace("/", "-").replace(" ", "_").lower()
+            safe_type    = "conditional" if "Conditional" in done_type else "unconditional"
+            csv_filename = f"forecast_{safe_country}_{safe_model}_{safe_type}_{today_str}.csv"
+
+            fc_df = pd.DataFrame({
+                "run":            range(1, len(results) + 1),
+                "temperature":    [round(t, 4) for t in temps],
+                "forecast_pct":   [round(v, 4) for v in results],
+                "country":        done_country,
+                "measure":        done_meta["measure"],
+                "model":          done_model,
+                "forecast_type":  done_type,
+                "forecast_month": next_month_label,
+                "run_date":       _dt.date.today().isoformat(),
+            })
+
+            dl_col, stat_col = st.columns([1, 2])
+            with dl_col:
+                st.download_button(
+                    label="⬇  Download forecasts CSV",
+                    data=fc_df.to_csv(index=False),
+                    file_name=csv_filename,
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+            with stat_col:
+                st.markdown(
+                    f"<div style='font-size:0.80rem;color:#8892b0;padding-top:10px;'>"
+                    f"<b style='color:#c8cdd8;'>{len(results)}</b> valid simulations  ·  "
+                    f"<b style='color:#c8cdd8;'>{len(errors_fc)}</b> failed  ·  "
+                    f"Model: <b style='color:#c8cdd8;'>{done_model}</b>  ·  "
+                    f"Filename: <code style='font-size:0.76rem;'>{csv_filename}</code>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+        # Show errors if any
+        if errors_fc:
+            with st.expander(f"⚠️ {len(errors_fc)} simulation error(s)", expanded=False):
+                for err in errors_fc:
+                    st.code(err, language=None)
 
 
 # ─── FOOTER ───────────────────────────────────────────────────────────────────
