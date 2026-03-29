@@ -1185,7 +1185,7 @@ with tab_forecast:
                     reasonings.append(reasoning)
                     status_slot.markdown(
                         f"<span style='font-size:0.82rem;color:#8892b0;'>"
-                        f"Run {i+1}/n_sim &nbsp;·&nbsp; temp={temp:.2f} "
+                        f"Run {i+1}/{n_sim} &nbsp;·&nbsp; temp={temp:.2f} "
                         f"&nbsp;·&nbsp; forecast: <strong style='color:#e8eaf0;'>{val:.2f}%</strong></span>",
                         unsafe_allow_html=True,
                     )
