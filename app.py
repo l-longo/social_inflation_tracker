@@ -1170,8 +1170,8 @@ with tab_forecast:
         next_date_result = None
         progress_bar = st.progress(0, text="Starting simulations…")
         status_slot   = st.empty()
-
-        for i in range(60):
+        n_sim = 60
+        for i in range(n_sim):
             temp = random.uniform(0.1, 0.9)
             try:
                 val, next_date_result, reasoning = run_single_forecast(
@@ -1185,7 +1185,7 @@ with tab_forecast:
                     reasonings.append(reasoning)
                     status_slot.markdown(
                         f"<span style='font-size:0.82rem;color:#8892b0;'>"
-                        f"Run {i+1}/30 &nbsp;·&nbsp; temp={temp:.2f} "
+                        f"Run {i+1}/n_sim &nbsp;·&nbsp; temp={temp:.2f} "
                         f"&nbsp;·&nbsp; forecast: <strong style='color:#e8eaf0;'>{val:.2f}%</strong></span>",
                         unsafe_allow_html=True,
                     )
@@ -1193,7 +1193,7 @@ with tab_forecast:
                     errors.append(f"Run {i+1}: could not parse number from model output")
             except Exception as exc:
                 errors.append(f"Run {i+1}: {repr(exc)}")
-            progress_bar.progress((i + 1) / 30, text=f"Simulation {i+1} / 30")
+            progress_bar.progress((i + 1) / n_sim, text=f"Simulation {i+1} / n_sim")
             _time.sleep(3)
 
         progress_bar.empty()
@@ -1227,7 +1227,7 @@ with tab_forecast:
         done_color = done_meta["color"]
 
         if not results:
-            st.warning("All 30 simulations failed to parse a valid number. See errors below.")
+            st.warning(f"All {n_sim} simulations failed to parse a valid number. See errors below.")
         else:
             mean_fc              = float(np.mean(results))
             median_fc            = float(np.median(results))
@@ -1251,7 +1251,7 @@ with tab_forecast:
             # ── Chart ────────────────────────────────────────────────────────
             hist_display = series_df.tail(36).copy()
 
-            # Jitter the 30 simulation points a tiny bit on x so they're visible
+            # Jitter the n_sim simulation points a tiny bit on x so they're visible
             rng = np.random.default_rng(42)
             x_jitter = [
                 next_date + pd.Timedelta(hours=float(rng.uniform(-60, 60)))
@@ -1291,7 +1291,7 @@ with tab_forecast:
                 x=x_jitter,
                 y=results,
                 mode="markers",
-                name=f"30 simulations",
+                name=f"{n_sim} simulations",
                 marker=dict(color=done_color, size=6, opacity=0.35,
                             line=dict(color="white", width=0.5)),
                 hovertemplate="Sim: <b>%{y:.2f}%</b><extra></extra>",
