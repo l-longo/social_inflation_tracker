@@ -477,7 +477,8 @@ def run_single_forecast(
     user_msg = (
         f"Assume that you are in {current_month_str}. "
         f"Please give me your best forecast of year-over-year {measure} inflation "
-        f"in {country_name} for the current month. Make your forecast considering the current economic environment.\n\n"
+        f"in {country_name} for the current month. Make your forecast considering the current economic environment and "
+        "use all the information you have (like access to the news).\n\n"
         f"Here is the historical series to inform your forecast "
         f"(last 36 months of available data, last observation: "
         f"{last_date.strftime('%B %Y')} = {last_value:.2f}%):\n\n"
